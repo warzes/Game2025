@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="GameApp.cpp">
+      <Filter>Game</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="000_Render_Triangle.h">
+      <Filter>Examples\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="GameConfig.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Game">
+      <UniqueIdentifier>{80649fc1-3505-4c91-814e-5f4bda6b06c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Examples">
+      <UniqueIdentifier>{8c1f8b41-05cc-43ba-9c73-9483d4957d36}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Examples\Render">
+      <UniqueIdentifier>{4875f2b7-6835-4e5e-804f-4388e976ed28}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

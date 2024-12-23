@@ -1,0 +1,92 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="Log.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="WindowSystemWin32.cpp">
+      <Filter>Platform\Window</Filter>
+    </ClCompile>
+    <ClCompile Include="InputSystemWin32.cpp">
+      <Filter>Platform\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="KeyboardWin32.cpp">
+      <Filter>Platform\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="MouseWin32.cpp">
+      <Filter>Platform\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="LogSystem.cpp">
+      <Filter>Debug</Filter>
+    </ClCompile>
+    <ClCompile Include="EngineApp.cpp">
+      <Filter>Engine</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="BaseHeader.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="EngineConfigMacros.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Log.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="WindowSystem.h">
+      <Filter>Platform\Window</Filter>
+    </ClInclude>
+    <ClInclude Include="WindowData.h">
+      <Filter>Platform\Window</Filter>
+    </ClInclude>
+    <ClInclude Include="InputSystem.h">
+      <Filter>Platform\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="Keyboard.h">
+      <Filter>Platform\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="Mouse.h">
+      <Filter>Platform\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="PrivateHeader.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="LogSystem.h">
+      <Filter>Debug</Filter>
+    </ClInclude>
+    <ClInclude Include="InputCore.h">
+      <Filter>Platform\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="WindowCore.h">
+      <Filter>Platform\Window</Filter>
+    </ClInclude>
+    <ClInclude Include="EngineApp.h">
+      <Filter>Engine</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Base">
+      <UniqueIdentifier>{0fcbaae2-c47b-4520-99f2-e03c1f479a79}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Debug">
+      <UniqueIdentifier>{ad5de62e-9405-455d-a2b2-54beb1ee35ca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Platform">
+      <UniqueIdentifier>{b2ac903d-f470-46fe-ac41-77470e852e2f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Debug\Private">
+      <UniqueIdentifier>{6d8569a5-8ef6-4476-ba23-9171340261de}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Platform\Input">
+      <UniqueIdentifier>{5e9deedb-e0fb-4c9d-8d39-9b79bed38b18}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Platform\Window">
+      <UniqueIdentifier>{9c9c3c74-2b53-4db5-9668-e0be9a684f41}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine">
+      <UniqueIdentifier>{6a3f0d72-b67f-4ca4-8466-6c7af739280b}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
