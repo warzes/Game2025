@@ -1,0 +1,48 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35617.110
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Элементы решения", "Элементы решения", "{754FC069-D67B-A9D7-50A1-8D1CA196D8F1}"
+	ProjectSection(SolutionItems) = preProject
+		idea.md = idea.md
+		ref.md = ref.md
+		TODO.md = TODO.md
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Game", "Game\Game.vcxproj", "{C07E7E41-A885-475F-B8CE-3F9B46F75AFF}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5DB787A4-AFCE-FF00-7FC6-A6398EDC130C} = {5DB787A4-AFCE-FF00-7FC6-A6398EDC130C}
+		{B80A25A1-1D67-4787-85D9-21E85DB159DD} = {B80A25A1-1D67-4787-85D9-21E85DB159DD}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Engine", "Engine\Engine.vcxproj", "{B80A25A1-1D67-4787-85D9-21E85DB159DD}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "3rdparty", "3rdparty\3rdparty.vcxproj", "{5DB787A4-AFCE-FF00-7FC6-A6398EDC130C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C07E7E41-A885-475F-B8CE-3F9B46F75AFF}.Debug|x64.ActiveCfg = Debug|x64
+		{C07E7E41-A885-475F-B8CE-3F9B46F75AFF}.Debug|x64.Build.0 = Debug|x64
+		{C07E7E41-A885-475F-B8CE-3F9B46F75AFF}.Release|x64.ActiveCfg = Release|x64
+		{C07E7E41-A885-475F-B8CE-3F9B46F75AFF}.Release|x64.Build.0 = Release|x64
+		{B80A25A1-1D67-4787-85D9-21E85DB159DD}.Debug|x64.ActiveCfg = Debug|x64
+		{B80A25A1-1D67-4787-85D9-21E85DB159DD}.Debug|x64.Build.0 = Debug|x64
+		{B80A25A1-1D67-4787-85D9-21E85DB159DD}.Release|x64.ActiveCfg = Release|x64
+		{B80A25A1-1D67-4787-85D9-21E85DB159DD}.Release|x64.Build.0 = Release|x64
+		{5DB787A4-AFCE-FF00-7FC6-A6398EDC130C}.Debug|x64.ActiveCfg = Debug|x64
+		{5DB787A4-AFCE-FF00-7FC6-A6398EDC130C}.Debug|x64.Build.0 = Debug|x64
+		{5DB787A4-AFCE-FF00-7FC6-A6398EDC130C}.Release|x64.ActiveCfg = Release|x64
+		{5DB787A4-AFCE-FF00-7FC6-A6398EDC130C}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {743620B8-3A4F-4A2D-8C34-D19403808A6F}
+	EndGlobalSection
+EndGlobal
