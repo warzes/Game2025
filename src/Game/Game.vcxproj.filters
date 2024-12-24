@@ -13,6 +13,9 @@
       <Filter>Examples\Render</Filter>
     </ClInclude>
     <ClInclude Include="GameConfig.h" />
+    <ClInclude Include="001_Render_RotateCube.h">
+      <Filter>Examples\Render</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Game">

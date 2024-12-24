@@ -1,6 +1,6 @@
 ﻿#include "stdafx.h"
 
-void GameApp()
+void ExampleRender001()
 {
 	EngineAppCreateInfo engineAppCreateInfo{};
 	EngineApp engine;
@@ -42,7 +42,7 @@ void GameApp()
 		std::unique_ptr<PipelineStateObject> mMeshPSO;
 
 		// InitializeMeshResources
-{
+		{
 			MeshVertex meshVertices[36] = {
 				{{1.0f, -1.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, -1.0f, 0.0f}},
 				{{1.0f, -1.0f, -1.0f}, {1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}},

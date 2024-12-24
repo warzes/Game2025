@@ -115,6 +115,12 @@ void ExampleRender000()
 
 			engine.EndFrame();
 		}
+
+		DestroyPipelineStateObject(std::move(mTrianglePSO));
+		DestroyShader(std::move(mTriangleVertexShader));
+		DestroyShader(std::move(mTrianglePixelShader));
+		DestroyBuffer(std::move(mTriangleVertexBuffer));
+		DestroyBuffer(std::move(mTriangleConstantBuffer));
 	}
 	engine.Destroy();
 }
