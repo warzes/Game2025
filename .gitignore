@@ -21,3 +21,5 @@ Thumbs.db
 /bin/D3D12/DirectSR.pdb
 
 /src/packages/Microsoft.Direct3D.D3D12.1.715.1-preview
+/bin/Data/Shaders/Compiled/Triangle.dxil
+/bin/Data/Shaders/Compiled/Triangle.dxil.pdb

@@ -13,6 +13,7 @@ int main(
 	[[maybe_unused]] char* argv[])
 {
 #if EXAMPLE_RUN
+	ExampleRender000();
 #else
 	extern void GameApp();
 	GameApp();
