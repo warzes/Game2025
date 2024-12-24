@@ -4,7 +4,14 @@
 
 #if defined(_MSC_VER)
 #	pragma warning(push, 3)
-//#	pragma warning(disable : 4061)
+#	pragma warning(disable : 4265)
+#	pragma warning(disable : 4365)
+#	pragma warning(disable : 4625)
+#	pragma warning(disable : 4626)
+#	pragma warning(disable : 4820)
+#	pragma warning(disable : 5039)
+#	pragma warning(disable : 5204)
+#	pragma warning(disable : 5220)
 #endif
 
 #define _USE_MATH_DEFINES
@@ -13,14 +20,17 @@
 #include <cstdint>
 #include <cmath>
 
+#include <numeric>
 #include <optional>
 #include <memory> // TODO: remove
 
+#include <mutex>
+
 #include <string>
 #include <string_view>
-//#include <array>
-//#include <vector>
-//#include <unordered_map>
+#include <array>
+#include <vector>
+#include <unordered_map>
 
 #if PLATFORM_WINDOWS
 
@@ -68,6 +78,24 @@
 
 #	include <Windows.h>
 #endif // PLATFORM_WINDOWS
+
+#if RENDER_D3D12
+
+#	include <d3dcompiler.h>
+#	include <d3d12.h>
+#	include <dxgi1_6.h>
+
+#	include <d3dx12.h>
+
+#	include <D3D12MemAlloc.h>
+
+#endif // RENDER_D3D12
+
+#if RENDER_VULKAN
+#endif // RENDER_VULKAN
+
+#if RENDER_WEBGPU
+#endif // RENDER_WEBGPU
 
 #define GLM_ENABLE_EXPERIMENTAL 1
 #include <glm/glm.hpp>

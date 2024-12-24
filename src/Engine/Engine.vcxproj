@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\packages\Microsoft.Direct3D.D3D12.1.715.1-preview\build\native\Microsoft.Direct3D.D3D12.props" Condition="Exists('..\packages\Microsoft.Direct3D.D3D12.1.715.1-preview\build\native\Microsoft.Direct3D.D3D12.props')" />
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
@@ -94,6 +95,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BaseHeader.h" />
+    <ClInclude Include="ContextD3D12.h" />
+    <ClInclude Include="DescriptorHeapD3D12.h" />
+    <ClInclude Include="QueueD3D12.h" />
+    <ClInclude Include="RenderCoreD3D12.h" />
     <ClInclude Include="EngineApp.h" />
     <ClInclude Include="EngineConfigMacros.h" />
     <ClInclude Include="InputCore.h" />
@@ -103,25 +108,47 @@
     <ClInclude Include="LogSystem.h" />
     <ClInclude Include="Mouse.h" />
     <ClInclude Include="PrivateHeader.h" />
+    <ClInclude Include="RenderContextD3D12.h" />
+    <ClInclude Include="RenderCore.h" />
+    <ClInclude Include="RenderSystem.h" />
+    <ClInclude Include="RHIBackend.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="WindowCore.h" />
     <ClInclude Include="WindowData.h" />
     <ClInclude Include="WindowSystem.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="ContextD3D12.cpp" />
+    <ClCompile Include="DescriptorHeapD3D12.cpp" />
     <ClCompile Include="EngineApp.cpp" />
     <ClCompile Include="InputSystemWin32.cpp" />
     <ClCompile Include="KeyboardWin32.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="LogSystem.cpp" />
     <ClCompile Include="MouseWin32.cpp" />
+    <ClCompile Include="QueueD3D12.cpp" />
+    <ClCompile Include="RenderContextD3D12.cpp" />
+    <ClCompile Include="RenderCoreD3D12.cpp" />
+    <ClCompile Include="RenderSystem.cpp" />
+    <ClCompile Include="RHIBackendD3D12.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="WindowSystemWin32.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\packages\Microsoft.Direct3D.D3D12.1.715.1-preview\build\native\Microsoft.Direct3D.D3D12.targets" Condition="Exists('..\packages\Microsoft.Direct3D.D3D12.1.715.1-preview\build\native\Microsoft.Direct3D.D3D12.targets')" />
   </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>Данный проект ссылается на пакеты NuGet, отсутствующие на этом компьютере. Используйте восстановление пакетов NuGet, чтобы скачать их.  Дополнительную информацию см. по адресу: http://go.microsoft.com/fwlink/?LinkID=322105. Отсутствует следующий файл: {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\Microsoft.Direct3D.D3D12.1.715.1-preview\build\native\Microsoft.Direct3D.D3D12.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Direct3D.D3D12.1.715.1-preview\build\native\Microsoft.Direct3D.D3D12.props'))" />
+    <Error Condition="!Exists('..\packages\Microsoft.Direct3D.D3D12.1.715.1-preview\build\native\Microsoft.Direct3D.D3D12.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Direct3D.D3D12.1.715.1-preview\build\native\Microsoft.Direct3D.D3D12.targets'))" />
+  </Target>
 </Project>

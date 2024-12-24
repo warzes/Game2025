@@ -23,6 +23,27 @@
     <ClCompile Include="EngineApp.cpp">
       <Filter>Engine</Filter>
     </ClCompile>
+    <ClCompile Include="RenderSystem.cpp">
+      <Filter>RHI</Filter>
+    </ClCompile>
+    <ClCompile Include="RHIBackendD3D12.cpp">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderContextD3D12.cpp">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="QueueD3D12.cpp">
+      <Filter>RHI\Direct3D12\Resouces</Filter>
+    </ClCompile>
+    <ClCompile Include="DescriptorHeapD3D12.cpp">
+      <Filter>RHI\Direct3D12\Resouces</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderCoreD3D12.cpp">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="ContextD3D12.cpp">
+      <Filter>RHI\Direct3D12\Resouces</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -65,6 +86,30 @@
     <ClInclude Include="EngineApp.h">
       <Filter>Engine</Filter>
     </ClInclude>
+    <ClInclude Include="RenderSystem.h">
+      <Filter>RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="RHIBackend.h">
+      <Filter>RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderCore.h">
+      <Filter>RHI</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderContextD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderCoreD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="QueueD3D12.h">
+      <Filter>RHI\Direct3D12\Resouces</Filter>
+    </ClInclude>
+    <ClInclude Include="DescriptorHeapD3D12.h">
+      <Filter>RHI\Direct3D12\Resouces</Filter>
+    </ClInclude>
+    <ClInclude Include="ContextD3D12.h">
+      <Filter>RHI\Direct3D12\Resouces</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Base">
@@ -88,5 +133,17 @@
     <Filter Include="Engine">
       <UniqueIdentifier>{6a3f0d72-b67f-4ca4-8466-6c7af739280b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="RHI">
+      <UniqueIdentifier>{1e2ef046-6711-4358-bb4b-a61dc53171dd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RHI\Direct3D12">
+      <UniqueIdentifier>{b585dfd2-fcb5-4be9-9bcf-d128c5b4859b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RHI\Direct3D12\Resouces">
+      <UniqueIdentifier>{1fd1c4a9-d80d-49b6-8019-2c7f360c8442}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
 </Project>

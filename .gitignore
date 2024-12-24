@@ -14,3 +14,10 @@ Thumbs.db
 /bin/Game_Debug.*
 /bin/Game_Release.*
 /bin/assets/sponza
+/bin/D3D12/D3D12Core.pdb
+/bin/D3D12/D3D12SDKLayers.dll
+/bin/D3D12/D3D12SDKLayers.pdb
+/bin/D3D12/DirectSR.dll
+/bin/D3D12/DirectSR.pdb
+
+/src/packages/Microsoft.Direct3D.D3D12.1.715.1-preview

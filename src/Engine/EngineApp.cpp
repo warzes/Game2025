@@ -3,15 +3,19 @@
 #include "Log.h"
 #include "WindowData.h"
 //=============================================================================
-bool IsRequestExit = false;
+bool RequestExitStatus = false;
 void RequestExit()
 {
-	IsRequestExit = true;
+	RequestExitStatus = true;
+}
+bool IsRequestExit()
+{
+	return RequestExitStatus;
 }
 //=============================================================================
 bool EngineApp::Create(const EngineAppCreateInfo& createInfo)
 {
-	IsRequestExit = true;
+	RequestExitStatus = false;
 
 #if PLATFORM_WINDOWS && RENDER_D3D12
 	if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED)))
@@ -30,29 +34,31 @@ bool EngineApp::Create(const EngineAppCreateInfo& createInfo)
 	m_window.ConnectInputSystem(&m_input);
 	if (!m_input.Create(createInfo.input)) return false;
 
-	WindowData data;
+	WindowData windowData;
 #if PLATFORM_WINDOWS
-	data.hwnd = m_window.GetHWND();
-	data.handleInstance = m_window.GetWindowInstance();
+	windowData.hwnd = m_window.GetHWND();
+	windowData.handleInstance = m_window.GetWindowInstance();
 #endif // PLATFORM_WINDOWS
-	data.width = m_window.GetWidth();
-	data.height = m_window.GetHeight();
+	windowData.width = m_window.GetWidth();
+	windowData.height = m_window.GetHeight();
 
-	IsRequestExit = false;
-	return true;
+	if (!m_render.Create(windowData, createInfo.render)) return false;
+
+	return !RequestExitStatus;
 }
 //=============================================================================
 void EngineApp::Destroy()
 {
+	m_render.Destroy();
 	m_input.Destroy();
 	m_window.Destroy();
 	m_log.Destroy();
-	IsRequestExit = true;
+	RequestExitStatus = true;
 }
 //=============================================================================
 bool EngineApp::IsShouldClose() const
 {
-	return IsRequestExit;
+	return RequestExitStatus;
 }
 //=============================================================================
 void EngineApp::BeginFrame()
@@ -66,11 +72,11 @@ void EngineApp::BeginFrame()
 	}
 	m_input.Update();
 
-	//m_render.Resize(m_window.GetWidth(), m_window.GetHeight());
+	m_render.Resize(m_window.GetWidth(), m_window.GetHeight());
 }
 //=============================================================================
 void EngineApp::EndFrame()
 {
-	//m_render.Present();
+	m_render.Present();
 }
 //=============================================================================
