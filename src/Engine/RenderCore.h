@@ -5,14 +5,9 @@ struct RenderSystemCreateInfo final
 	bool vsync{ false };
 };
 
-template <class T>
-void SafeRelease(T& ppT)
+inline uint32_t GetGroupCount(uint32_t threadCount, uint32_t groupSize)
 {
-	if (ppT)
-	{
-		ppT->Release();
-		ppT = nullptr;
-	}
+	return (threadCount + groupSize - 1) / groupSize;
 }
 
 inline uint32_t AlignU32(uint32_t valueToAlign, uint32_t alignment)

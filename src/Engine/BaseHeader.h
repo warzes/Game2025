@@ -26,6 +26,7 @@
 
 #include <mutex>
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 #include <array>
@@ -85,9 +86,17 @@
 #	include <d3d12.h>
 #	include <dxgi1_6.h>
 
+#	if defined(_DEBUG)
+#		include <dxgidebug.h>
+#	endif
+
 #	include <d3dx12.h>
 
 #	include <D3D12MemAlloc.h>
+
+#	include <DirectXShaderCompiler/dxcapi.h>
+
+#	include <DirectXTex/DirectXTex.h>
 
 #endif // RENDER_D3D12
 

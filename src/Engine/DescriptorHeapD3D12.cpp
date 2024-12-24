@@ -45,7 +45,7 @@ StagingDescriptorHeap::~StagingDescriptorHeap()
 {
 	if (m_activeHandleCount != 0)
 	{
-		Error("There were active handles when the descriptor heap was destroyed. Look for leaks.");
+		Fatal("There were active handles when the descriptor heap was destroyed. Look for leaks.");
 	}
 }
 //=============================================================================
@@ -67,7 +67,7 @@ Descriptor StagingDescriptorHeap::GetNewDescriptor()
 	}
 	else
 	{
-		Error("Ran out of dynamic descriptor heap handles, need to increase heap size.");
+		Fatal("Ran out of dynamic descriptor heap handles, need to increase heap size.");
 	}
 
 	Descriptor newDescriptor;
@@ -89,7 +89,7 @@ void StagingDescriptorHeap::FreeDescriptor(Descriptor descriptor)
 
 	if (m_activeHandleCount == 0)
 	{
-		Error("Freeing heap handles when there should be none left");
+		Fatal("Freeing heap handles when there should be none left");
 		return;
 	}
 
@@ -136,7 +136,7 @@ Descriptor RenderPassDescriptorHeap::AllocateUserDescriptorBlock(uint32_t count)
 		}
 		else
 		{
-			Error("Ran out of render pass descriptor heap handles, need to increase heap size.");
+			Fatal("Ran out of render pass descriptor heap handles, need to increase heap size.");
 		}
 	}
 

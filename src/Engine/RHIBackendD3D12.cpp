@@ -16,14 +16,84 @@ extern "C" { __declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\
 //=============================================================================
 RenderContext gRenderContext{};
 //=============================================================================
-void CopySRVHandleToReservedTable(Descriptor srvHandle, uint32_t index)
+bool CreateWindowDependentResources(HWND windowHandle, glm::ivec2 screenSize)
 {
-	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
-	{
-		Descriptor targetDescriptor = gRenderContext.SRVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(index);
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+	ZeroMemory(&swapChainDesc, sizeof(swapChainDesc));
+	swapChainDesc.Width = lround(screenSize.x);
+	swapChainDesc.Height = lround(screenSize.y);
+	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	swapChainDesc.Stereo = false;
+	swapChainDesc.SampleDesc.Count = 1;
+	swapChainDesc.SampleDesc.Quality = 0;
+	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.BufferCount = NUM_BACK_BUFFERS;
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapChainDesc.Flags = 0;
+	swapChainDesc.Scaling = DXGI_SCALING_NONE;
+	swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 
-		RHIBackend::CopyDescriptorsSimple(1, targetDescriptor.CPUHandle, srvHandle.CPUHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	IDXGISwapChain1* swapChain = nullptr;
+	HRESULT result = gRenderContext.DXGIFactory->CreateSwapChainForHwnd(gRenderContext.graphicsQueue->GetDeviceQueue(), windowHandle, &swapChainDesc, nullptr, nullptr, &swapChain);
+	if (FAILED(result))
+	{
+		Fatal("IDXGIFactory7::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
+		return false;
 	}
+
+	result = swapChain->QueryInterface(__uuidof(IDXGISwapChain3), (void**)&gRenderContext.swapChain);
+	SafeRelease(swapChain);
+	if (FAILED(result))
+	{
+		Fatal("IDXGISwapChain1::QueryInterface() failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	for (uint32_t bufferIndex = 0; bufferIndex < NUM_BACK_BUFFERS; bufferIndex++)
+	{
+		ID3D12Resource* backBufferResource = nullptr;
+		Descriptor backBufferRTVHandle = gRenderContext.RTVStagingDescriptorHeap->GetNewDescriptor();
+
+		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+		rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+		rtvDesc.Texture2D.MipSlice = 0;
+		rtvDesc.Texture2D.PlaneSlice = 0;
+
+		result = gRenderContext.swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&backBufferResource));
+		if (FAILED(result))
+		{
+			Fatal("IDXGISwapChain4::GetBuffer() failed: " + DXErrorToStr(result));
+			return false;
+		}
+
+		gRenderContext.device->CreateRenderTargetView(backBufferResource, &rtvDesc, backBufferRTVHandle.CPUHandle);
+
+		gRenderContext.backBuffers[bufferIndex] = new TextureResource();
+		gRenderContext.backBuffers[bufferIndex]->desc = backBufferResource->GetDesc();
+		gRenderContext.backBuffers[bufferIndex]->resource = backBufferResource;
+		gRenderContext.backBuffers[bufferIndex]->state = D3D12_RESOURCE_STATE_PRESENT;
+		gRenderContext.backBuffers[bufferIndex]->RTVDescriptor = backBufferRTVHandle;
+	}
+
+	gRenderContext.frameId = 0;
+
+	return true;
+}
+//=============================================================================
+void DestroyWindowDependentResources()
+{
+	for (uint32_t bufferIndex = 0; bufferIndex < NUM_BACK_BUFFERS; bufferIndex++)
+	{
+		if (gRenderContext.backBuffers[bufferIndex])
+		{
+			gRenderContext.RTVStagingDescriptorHeap->FreeDescriptor(gRenderContext.backBuffers[bufferIndex]->RTVDescriptor);
+			SafeRelease(gRenderContext.backBuffers[bufferIndex]->resource);
+			gRenderContext.backBuffers[bufferIndex] = nullptr;
+		}
+	}
+
+	SafeRelease(gRenderContext.swapChain);
 }
 //=============================================================================
 bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateInfo& createInfo)
@@ -67,7 +137,22 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 		Fatal("IDXGIFactory7::EnumAdapterByGpuPreference() failed: " + DXErrorToStr(result));
 		return false;
 	}
-	result = D3D12CreateDevice(gRenderContext.adapter, D3D_FEATURE_LEVEL_12_2, IID_PPV_ARGS(&gRenderContext.device));
+	const D3D_FEATURE_LEVEL featureLevels[] = {
+			D3D_FEATURE_LEVEL_12_2,
+			D3D_FEATURE_LEVEL_12_1,
+			D3D_FEATURE_LEVEL_12_0,
+			D3D_FEATURE_LEVEL_11_1,
+			D3D_FEATURE_LEVEL_11_0,
+	};
+	for (auto& featureLevel : featureLevels)
+	{
+		result = D3D12CreateDevice(gRenderContext.adapter, featureLevel, IID_PPV_ARGS(&gRenderContext.device));
+		if (SUCCEEDED(result))
+		{
+			Print("Direct3D 12 Feature Level: " + ConvertStr(featureLevel));
+			break;
+		}
+	}
 	if (FAILED(result))
 	{
 		Fatal("D3D12CreateDevice() failed: " + DXErrorToStr(result));
@@ -233,12 +318,15 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	gRenderContext.FreeReservedDescriptorIndices.resize(NUM_RESERVED_SRV_DESCRIPTORS - 1);
 	std::iota(gRenderContext.FreeReservedDescriptorIndices.begin(), gRenderContext.FreeReservedDescriptorIndices.end(), 1);
 
+	if (!CreateWindowDependentResources(wndData.hwnd, { wndData.width, wndData.height })) return false;
 
 	return true;
 }
 //=============================================================================
 void RHIBackend::DestroyAPI()
 {
+	WaitForIdle();
+	DestroyWindowDependentResources();
 	gRenderContext.Release();
 }
 //=============================================================================
@@ -250,103 +338,36 @@ void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 	gRenderContext.frameBufferHeight = height;
 }
 //=============================================================================
+void RHIBackend::BeginFrame()
+{
+	gRenderContext.frameId = (gRenderContext.frameId + 1) % NUM_FRAMES_IN_FLIGHT;
+
+	//wait on fences from 2 frames ago
+	gRenderContext.graphicsQueue->WaitForFenceCPUBlocking(gRenderContext.endOfFrameFences[gRenderContext.frameId].graphicsQueueFence);
+	gRenderContext.computeQueue->WaitForFenceCPUBlocking(gRenderContext.endOfFrameFences[gRenderContext.frameId].computeQueueFence);
+	gRenderContext.copyQueue->WaitForFenceCPUBlocking(gRenderContext.endOfFrameFences[gRenderContext.frameId].copyQueueFence);
+
+	ProcessDestructions(gRenderContext.frameId);
+
+	gRenderContext.uploadContexts[gRenderContext.frameId]->ResolveProcessedUploads();
+	gRenderContext.uploadContexts[gRenderContext.frameId]->Reset();
+
+	gRenderContext.contextSubmissions[gRenderContext.frameId].clear();
+}
+//=============================================================================
+void RHIBackend::EndFrame()
+{
+	gRenderContext.uploadContexts[gRenderContext.frameId]->ProcessUploads();
+	SubmitContextWork(*gRenderContext.uploadContexts[gRenderContext.frameId]);
+
+	gRenderContext.endOfFrameFences[gRenderContext.frameId].computeQueueFence = gRenderContext.computeQueue->SignalFence();
+	gRenderContext.endOfFrameFences[gRenderContext.frameId].copyQueueFence = gRenderContext.copyQueue->SignalFence();
+}
+//=============================================================================
 void RHIBackend::Present()
 {
-}
-//=============================================================================
-std::unique_ptr<BufferResource> RHIBackend::CreateBuffer(const BufferCreationDesc& desc)
-{
-	std::unique_ptr<BufferResource> newBuffer = std::make_unique<BufferResource>();
-	newBuffer->desc.Width = AlignU32(static_cast<uint32_t>(desc.size), 256);
-	newBuffer->desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	newBuffer->desc.Alignment = 0;
-	newBuffer->desc.Height = 1;
-	newBuffer->desc.DepthOrArraySize = 1;
-	newBuffer->desc.MipLevels = 1;
-	newBuffer->desc.Format = DXGI_FORMAT_UNKNOWN;
-	newBuffer->desc.SampleDesc.Count = 1;
-	newBuffer->desc.SampleDesc.Quality = 0;
-	newBuffer->desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	newBuffer->desc.Flags = D3D12_RESOURCE_FLAG_NONE;
-	newBuffer->stride = desc.stride;
-
-	uint32_t numElements = static_cast<uint32_t>(newBuffer->stride > 0 ? desc.size / newBuffer->stride : 1);
-	bool isHostVisible = ((desc.accessFlags & BufferAccessFlags::hostWritable) == BufferAccessFlags::hostWritable);
-	bool hasCBV = ((desc.viewFlags & BufferViewFlags::cbv) == BufferViewFlags::cbv);
-	bool hasSRV = ((desc.viewFlags & BufferViewFlags::srv) == BufferViewFlags::srv);
-	bool hasUAV = ((desc.viewFlags & BufferViewFlags::uav) == BufferViewFlags::uav);
-
-	D3D12_RESOURCE_STATES resourceState = D3D12_RESOURCE_STATE_COPY_DEST;
-
-	if (isHostVisible)
-	{
-		resourceState = D3D12_RESOURCE_STATE_GENERIC_READ;
-	}
-
-	newBuffer->state = resourceState;
-
-	D3D12MA::ALLOCATION_DESC allocationDesc{};
-	allocationDesc.HeapType = isHostVisible ? D3D12_HEAP_TYPE_UPLOAD : D3D12_HEAP_TYPE_DEFAULT;
-
-	gRenderContext.allocator->CreateResource(&allocationDesc, &newBuffer->desc, resourceState, nullptr, &newBuffer->allocation, IID_PPV_ARGS(&newBuffer->resource));
-	newBuffer->virtualAddress = newBuffer->resource->GetGPUVirtualAddress();
-
-	if (hasCBV)
-	{
-		D3D12_CONSTANT_BUFFER_VIEW_DESC constantBufferViewDesc = {};
-		constantBufferViewDesc.BufferLocation = newBuffer->resource->GetGPUVirtualAddress();
-		constantBufferViewDesc.SizeInBytes = static_cast<uint32_t>(newBuffer->desc.Width);
-
-		newBuffer->CBVDescriptor = gRenderContext.SRVStagingDescriptorHeap->GetNewDescriptor();
-		gRenderContext.device->CreateConstantBufferView(&constantBufferViewDesc, newBuffer->CBVDescriptor.CPUHandle);
-	}
-
-	if (hasSRV)
-	{
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Format = desc.isRawAccess ? DXGI_FORMAT_R32_TYPELESS : DXGI_FORMAT_UNKNOWN;
-		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = static_cast<uint32_t>(desc.isRawAccess ? (desc.size / 4) : numElements);
-		srvDesc.Buffer.StructureByteStride = desc.isRawAccess ? 0 : newBuffer->stride;
-		srvDesc.Buffer.Flags = desc.isRawAccess ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
-
-		newBuffer->SRVDescriptor = gRenderContext.SRVStagingDescriptorHeap->GetNewDescriptor();
-		gRenderContext.device->CreateShaderResourceView(newBuffer->resource, &srvDesc, newBuffer->SRVDescriptor.CPUHandle);
-
-		newBuffer->descriptorHeapIndex = gRenderContext.FreeReservedDescriptorIndices.back();
-		gRenderContext.FreeReservedDescriptorIndices.pop_back();
-
-		CopySRVHandleToReservedTable(newBuffer->SRVDescriptor, newBuffer->descriptorHeapIndex);
-	}
-
-	if (hasUAV)
-	{
-		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-		uavDesc.Format = desc.isRawAccess ? DXGI_FORMAT_R32_TYPELESS : DXGI_FORMAT_UNKNOWN;
-		uavDesc.Buffer.CounterOffsetInBytes = 0;
-		uavDesc.Buffer.FirstElement = 0;
-		uavDesc.Buffer.NumElements = static_cast<uint32_t>(desc.isRawAccess ? (desc.size / 4) : numElements);
-		uavDesc.Buffer.StructureByteStride = desc.isRawAccess ? 0 : newBuffer->stride;
-		uavDesc.Buffer.Flags = desc.isRawAccess ? D3D12_BUFFER_UAV_FLAG_RAW : D3D12_BUFFER_UAV_FLAG_NONE;
-
-		newBuffer->UAVDescriptor = gRenderContext.SRVStagingDescriptorHeap->GetNewDescriptor();
-		gRenderContext.device->CreateUnorderedAccessView(newBuffer->resource, nullptr, &uavDesc, newBuffer->UAVDescriptor.CPUHandle);
-	}
-
-	if (isHostVisible)
-	{
-		newBuffer->resource->Map(0, nullptr, reinterpret_cast<void**>(&newBuffer->mappedResource));
-	}
-
-	return newBuffer;
-}
-//=============================================================================
-void RHIBackend::CopyDescriptorsSimple(uint32_t numDescriptors, D3D12_CPU_DESCRIPTOR_HANDLE destDescriptorRangeStart, D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptorRangeStart, D3D12_DESCRIPTOR_HEAP_TYPE descriptorType)
-{
-	gRenderContext.device->CopyDescriptorsSimple(numDescriptors, destDescriptorRangeStart, srcDescriptorRangeStart, descriptorType);
+	gRenderContext.swapChain->Present(0, 0);
+	gRenderContext.endOfFrameFences[gRenderContext.frameId].graphicsQueueFence = gRenderContext.graphicsQueue->SignalFence();
 }
 //=============================================================================
 #endif // RENDER_D3D12
