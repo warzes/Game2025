@@ -9,11 +9,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
-    <ClInclude Include="000_Render_Triangle.h">
+    <ClInclude Include="000_Render_TriangleBindless.h">
       <Filter>Examples\Render</Filter>
     </ClInclude>
     <ClInclude Include="GameConfig.h" />
-    <ClInclude Include="001_Render_RotateCube.h">
+    <ClInclude Include="001_Render_RotateCubeBindless.h">
       <Filter>Examples\Render</Filter>
     </ClInclude>
   </ItemGroup>

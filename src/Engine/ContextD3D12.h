@@ -4,7 +4,7 @@
 
 #include "DescriptorHeapD3D12.h"
 
-// TODO: RenderContext?
+// TODO: rename FCommandContext
 
 class Context
 {

@@ -108,10 +108,10 @@
     <ClInclude Include="LogSystem.h" />
     <ClInclude Include="Mouse.h" />
     <ClInclude Include="PrivateHeader.h" />
-    <ClInclude Include="RenderContextD3D12.h" />
     <ClInclude Include="RenderCore.h" />
     <ClInclude Include="RenderSystem.h" />
     <ClInclude Include="RHIBackend.h" />
+    <ClInclude Include="RHIBackendD3D12.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="WindowCore.h" />
     <ClInclude Include="WindowData.h" />
@@ -127,7 +127,6 @@
     <ClCompile Include="LogSystem.cpp" />
     <ClCompile Include="MouseWin32.cpp" />
     <ClCompile Include="QueueD3D12.cpp" />
-    <ClCompile Include="RenderContextD3D12.cpp" />
     <ClCompile Include="RenderCoreD3D12.cpp" />
     <ClCompile Include="RenderSystem.cpp" />
     <ClCompile Include="RHIBackendD3D12.cpp" />

@@ -98,7 +98,7 @@ void GameApp()
 
 			memcpy_s(bufferUpload->bufferData.get(), sizeof(meshVertices), meshVertices, sizeof(meshVertices));
 
-			gRenderContext.GetUploadContextForCurrentFrame().AddBufferUpload(std::move(bufferUpload)); // добавить в очередь - загрузка данных сразу на gpu, эффективней чем хранить в cpu (в пред примере с треугольником)
+			gRHI.GetUploadContextForCurrentFrame().AddBufferUpload(std::move(bufferUpload)); // добавить в очередь - загрузка данных сразу на gpu, эффективней чем хранить в cpu (в пред примере с треугольником)
 
 			mWoodTexture = CreateTextureFromFile("Data/Textures/Wood.dds");
 
@@ -183,7 +183,7 @@ void GameApp()
 		{
 			engine.BeginFrame();
 
-			TextureResource& backBuffer = gRenderContext.GetCurrentBackBuffer();
+			TextureResource& backBuffer = gRHI.GetCurrentBackBuffer();
 
 			graphicsContext->Reset();
 			graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -203,9 +203,9 @@ void GameApp()
 				meshConstants.textureIndex = mWoodTexture->descriptorHeapIndex;
 				meshConstants.worldMatrix = glm::rotate(glm::mat4(1.0f), rotation, glm::vec3(0.0f, 1.0f, 0.0f));
 
-				mMeshConstantBuffers[gRenderContext.GetFrameId()]->SetMappedData(&meshConstants, sizeof(MeshConstants));
+				mMeshConstantBuffers[gRHI.GetFrameId()]->SetMappedData(&meshConstants, sizeof(MeshConstants));
 
-				mMeshPerObjectResourceSpace.SetCBV(mMeshConstantBuffers[gRenderContext.GetFrameId()].get());
+				mMeshPerObjectResourceSpace.SetCBV(mMeshConstantBuffers[gRHI.GetFrameId()].get());
 
 				PipelineInfo pipeline;
 				pipeline.pipeline = mMeshPSO.get();

@@ -104,8 +104,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="000_Render_Triangle.h" />
-    <ClInclude Include="001_Render_RotateCube.h" />
+    <ClInclude Include="000_Render_TriangleBindless.h" />
+    <ClInclude Include="001_Render_RotateCubeBindless.h" />
     <ClInclude Include="GameConfig.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>

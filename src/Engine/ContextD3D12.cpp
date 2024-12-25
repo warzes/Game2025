@@ -1,7 +1,7 @@
 ﻿#include "stdafx.h"
 #if RENDER_D3D12
 #include "ContextD3D12.h"
-#include "RenderContextD3D12.h"
+#include "RHIBackendD3D12.h"
 #include "Log.h"
 //=============================================================================
 Context::Context(D3D12_COMMAND_LIST_TYPE commandType) : m_contextType(commandType)
@@ -9,7 +9,7 @@ Context::Context(D3D12_COMMAND_LIST_TYPE commandType) : m_contextType(commandTyp
 	HRESULT result;
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
-		result = gRenderContext.device->CreateCommandAllocator(commandType, IID_PPV_ARGS(&m_commandAllocators[frameIndex]));
+		result = gRHI.device->CreateCommandAllocator(commandType, IID_PPV_ARGS(&m_commandAllocators[frameIndex]));
 		if (FAILED(result))
 		{
 			Fatal("ID3D12Device::CreateCommandAllocator() failed: " + DXErrorToStr(result));
@@ -17,7 +17,7 @@ Context::Context(D3D12_COMMAND_LIST_TYPE commandType) : m_contextType(commandTyp
 		}
 	}
 
-	result = gRenderContext.device->CreateCommandList1(0, commandType, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&m_commandList));
+	result = gRHI.device->CreateCommandList1(0, commandType, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&m_commandList));
 	if (FAILED(result))
 	{
 		Fatal("ID3D12Device::CreateCommandList1() failed: " + DXErrorToStr(result));
@@ -37,14 +37,14 @@ Context::~Context()
 //=============================================================================
 void Context::Reset()
 {
-	uint32_t frameId = gRenderContext.GetFrameId();
+	uint32_t frameId = gRHI.GetFrameId();
 
 	m_commandAllocators[frameId]->Reset();
 	m_commandList->Reset(m_commandAllocators[frameId], nullptr);
 
 	if (m_contextType != D3D12_COMMAND_LIST_TYPE_COPY)
 	{
-		bindDescriptorHeaps(gRenderContext.GetFrameId());
+		bindDescriptorHeaps(gRHI.GetFrameId());
 	}
 }
 //=============================================================================
@@ -102,12 +102,12 @@ void Context::FlushBarriers()
 //=============================================================================
 void Context::bindDescriptorHeaps(uint32_t frameIndex)
 {
-	m_currentSRVHeap = &gRenderContext.GetSRVHeap(frameIndex);
+	m_currentSRVHeap = &gRHI.GetSRVHeap(frameIndex);
 	m_currentSRVHeap->Reset();
 
 	ID3D12DescriptorHeap* heapsToBind[2];
-	heapsToBind[0] = gRenderContext.GetSRVHeap(frameIndex).GetHeap();
-	heapsToBind[1] = gRenderContext.GetSamplerHeap().GetHeap();
+	heapsToBind[0] = gRHI.GetSRVHeap(frameIndex).GetHeap();
+	heapsToBind[1] = gRHI.GetSamplerHeap().GetHeap();
 
 	m_commandList->SetDescriptorHeaps(2, heapsToBind);
 }

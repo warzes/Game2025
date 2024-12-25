@@ -1,7 +1,6 @@
 ﻿#include "stdafx.h"
 #include "RenderSystem.h"
 #include "RHIBackend.h"
-
 //=============================================================================
 RenderSystem::~RenderSystem()
 {
@@ -9,7 +8,7 @@ RenderSystem::~RenderSystem()
 //=============================================================================
 bool RenderSystem::Create(const WindowData& wndData, const RenderSystemCreateInfo& createInfo)
 {
-	if (!RHIBackend::CreateAPI(wndData, createInfo)) return false;
+	if (!gRHI.CreateAPI(wndData, createInfo)) return false;
 
 	m_graphicsContext = CreateGraphicsContext();
 
@@ -21,31 +20,31 @@ void RenderSystem::Destroy()
 	WaitForIdle();
 
 	m_graphicsContext.reset();
-	RHIBackend::DestroyAPI();
+	gRHI.DestroyAPI();
 }
 //=============================================================================
 void RenderSystem::Resize(uint32_t width, uint32_t height)
 {
-	RHIBackend::ResizeFrameBuffer(width, height);
+	gRHI.ResizeFrameBuffer(width, height);
 }
 //=============================================================================
 void RenderSystem::BeginFrame()
 {
-	RHIBackend::BeginFrame();
+	gRHI.BeginFrame();
 }
 //=============================================================================
 void RenderSystem::EndFrame()
 {
-	RHIBackend::EndFrame();
+	gRHI.EndFrame();
 }
 //=============================================================================
 void RenderSystem::Present()
 {
-	RHIBackend::Present();
+	gRHI.Present();
 }
 //=============================================================================
 glm::ivec2 RenderSystem::GetFrameBufferSize() const
 {
-	return { gRenderContext.frameBufferWidth, gRenderContext.frameBufferHeight }; // TODO: temp
+	return { gRHI.frameBufferWidth, gRHI.frameBufferHeight }; // TODO: temp
 }
 //=============================================================================

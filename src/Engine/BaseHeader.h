@@ -85,19 +85,16 @@
 #	include <d3dcompiler.h>
 #	include <d3d12.h>
 #	include <dxgi1_6.h>
-
 #	if defined(_DEBUG)
 #		include <dxgidebug.h>
 #	endif
-
+#	include <wrl.h>
 #	include <d3dx12.h>
-
 #	include <D3D12MemAlloc.h>
-
 #	include <DirectXShaderCompiler/dxcapi.h>
-
 #	include <DirectXTex/DirectXTex.h>
 
+using Microsoft::WRL::ComPtr;
 #endif // RENDER_D3D12
 
 #if RENDER_VULKAN

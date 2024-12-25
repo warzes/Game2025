@@ -2,9 +2,13 @@
 
 #if RENDER_D3D12
 
+#include "RenderCoreD3D12.h"
+#include "ContextD3D12.h"
+#include "RHIBackendD3D12.h"
 #include "QueueD3D12.h"
 #include "DescriptorHeapD3D12.h"
-#include "ContextD3D12.h"
+
+struct WindowData;
 
 struct DestructionQueue final
 {
@@ -14,12 +18,18 @@ struct DestructionQueue final
 	std::vector<std::unique_ptr<Context>>             contextsToDestroy;
 };
 
-class RenderContext final
+class RHIBackend final
 {
 public:
-	~RenderContext();
+	~RHIBackend();
 
-	void Release();
+	[[nodiscard]] bool CreateAPI(const WindowData& wndData, const RenderSystemCreateInfo& createInfo);
+	void DestroyAPI();
+
+	void ResizeFrameBuffer(uint32_t width, uint32_t height);
+	void BeginFrame();
+	void EndFrame();
+	void Present();
 
 	uint32_t GetFrameId() const { return frameId; }
 	RenderPassDescriptorHeap& GetSamplerHeap() { return *SamplerRenderPassDescriptorHeap; }
@@ -30,24 +40,24 @@ public:
 	Descriptor& GetImguiDescriptor(uint32_t index) { return ImguiDescriptors[index]; }
 	UploadContext& GetUploadContextForCurrentFrame() { return *uploadContexts[frameId]; }
 
-	IDXGIFactory7*      DXGIFactory{ nullptr };
-	IDXGIAdapter4*      adapter{ nullptr };
-	ID3D12Device8*      device{ nullptr };
+	IDXGIFactory7* DXGIFactory{ nullptr };
+	IDXGIAdapter4* adapter{ nullptr };
+	ID3D12Device14* device{ nullptr };
 	D3D12MA::Allocator* allocator{ nullptr };
 
-	QueueD3D12*         graphicsQueue{ nullptr };
-	QueueD3D12*         computeQueue{ nullptr };
-	QueueD3D12*         copyQueue{ nullptr };
+	QueueD3D12* graphicsQueue{ nullptr };
+	QueueD3D12* computeQueue{ nullptr };
+	QueueD3D12* copyQueue{ nullptr };
 
-	StagingDescriptorHeap*                       RTVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeap*                       DSVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeap*                       SRVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeap* RTVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeap* DSVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeap* SRVStagingDescriptorHeap{ nullptr };
 	std::array<Descriptor, NUM_FRAMES_IN_FLIGHT> ImguiDescriptors;
 	std::vector<uint32_t>                        FreeReservedDescriptorIndices;
-	RenderPassDescriptorHeap*                    SamplerRenderPassDescriptorHeap{ nullptr };
+	RenderPassDescriptorHeap* SamplerRenderPassDescriptorHeap{ nullptr };
 	std::array<RenderPassDescriptorHeap*, NUM_FRAMES_IN_FLIGHT> SRVRenderPassDescriptorHeaps = { nullptr };
 
-	IDXGISwapChain4*    swapChain{ nullptr };
+	IDXGISwapChain4* swapChain{ nullptr };
 	std::array<TextureResource*, NUM_BACK_BUFFERS> backBuffers;
 
 	uint32_t            frameBufferWidth{ 0 };
@@ -60,9 +70,12 @@ public:
 	std::array<UploadContext*, NUM_FRAMES_IN_FLIGHT> uploadContexts;
 	std::array<std::vector<std::pair<uint64_t, D3D12_COMMAND_LIST_TYPE>>, NUM_FRAMES_IN_FLIGHT> contextSubmissions;
 	std::array<DestructionQueue, NUM_FRAMES_IN_FLIGHT> destructionQueues;
+
+private:
+	void release();
 };
 
-extern RenderContext gRenderContext;
+extern RHIBackend gRHI;
 
 // TODO: рассортировать
 
@@ -90,6 +103,5 @@ void CopyDescriptors(uint32_t numDestDescriptorRanges, const D3D12_CPU_DESCRIPTO
 	uint32_t numSrcDescriptorRanges, const D3D12_CPU_DESCRIPTOR_HANDLE* srcDescriptorRangeStarts, const uint32_t* srcDescriptorRangeSizes, D3D12_DESCRIPTOR_HEAP_TYPE descriptorType);
 
 void ProcessDestructions(uint32_t frameIndex);
-
 
 #endif // RENDER_D3D12

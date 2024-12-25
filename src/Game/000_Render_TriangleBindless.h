@@ -90,7 +90,7 @@ void ExampleRender000()
 		{
 			engine.BeginFrame();
 
-			TextureResource& backBuffer = gRenderContext.GetCurrentBackBuffer();
+			TextureResource& backBuffer = gRHI.GetCurrentBackBuffer();
 
 			graphicsContext->Reset();
 			graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);

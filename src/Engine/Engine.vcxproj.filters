@@ -29,9 +29,6 @@
     <ClCompile Include="RHIBackendD3D12.cpp">
       <Filter>RHI\Direct3D12</Filter>
     </ClCompile>
-    <ClCompile Include="RenderContextD3D12.cpp">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClCompile>
     <ClCompile Include="QueueD3D12.cpp">
       <Filter>RHI\Direct3D12\Resouces</Filter>
     </ClCompile>
@@ -95,9 +92,6 @@
     <ClInclude Include="RenderCore.h">
       <Filter>RHI</Filter>
     </ClInclude>
-    <ClInclude Include="RenderContextD3D12.h">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClInclude>
     <ClInclude Include="RenderCoreD3D12.h">
       <Filter>RHI\Direct3D12</Filter>
     </ClInclude>
@@ -109,6 +103,9 @@
     </ClInclude>
     <ClInclude Include="ContextD3D12.h">
       <Filter>RHI\Direct3D12\Resouces</Filter>
+    </ClInclude>
+    <ClInclude Include="RHIBackendD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
