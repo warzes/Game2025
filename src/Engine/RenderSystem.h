@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "RenderCore.h"
-#include "ContextD3D12.h" // TODO: temp
+#include "CommandContextD3D12.h" // TODO: temp
 #include "RHIBackend.h" // TODO: temp
 
 struct WindowData;
@@ -20,9 +20,4 @@ public:
 	void Present();
 
 	glm::ivec2 GetFrameBufferSize() const;
-
-	auto GetGraphicsContext() { return m_graphicsContext.get(); }
-
-private:
-	std::unique_ptr<GraphicsContext> m_graphicsContext; // TODO: temp
 };

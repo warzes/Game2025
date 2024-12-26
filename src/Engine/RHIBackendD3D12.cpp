@@ -15,70 +15,12 @@ extern "C" { __declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\
 //=============================================================================
 RHIBackend gRHI{};
 //=============================================================================
-bool CreateWindowDependentResources(HWND windowHandle, glm::ivec2 screenSize)
+#if RHI_VALIDATION_ENABLED
+void D3D12MessageFuncion(D3D12_MESSAGE_CATEGORY Category, D3D12_MESSAGE_SEVERITY Severity, D3D12_MESSAGE_ID ID, LPCSTR pDescription, void* pContext) noexcept
 {
-	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	ZeroMemory(&swapChainDesc, sizeof(swapChainDesc));
-	swapChainDesc.Width = lround(screenSize.x);
-	swapChainDesc.Height = lround(screenSize.y);
-	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	swapChainDesc.Stereo = false;
-	swapChainDesc.SampleDesc.Count = 1;
-	swapChainDesc.SampleDesc.Quality = 0;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.BufferCount = NUM_BACK_BUFFERS;
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	swapChainDesc.Flags = 0;
-	swapChainDesc.Scaling = DXGI_SCALING_NONE;
-	swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-
-	IDXGISwapChain1* swapChain = nullptr;
-	HRESULT result = gRHI.DXGIFactory->CreateSwapChainForHwnd(gRHI.graphicsQueue->GetDeviceQueue(), windowHandle, &swapChainDesc, nullptr, nullptr, &swapChain);
-	if (FAILED(result))
-	{
-		Fatal("IDXGIFactory7::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	result = swapChain->QueryInterface(__uuidof(IDXGISwapChain3), (void**)&gRHI.swapChain);
-	SafeRelease(swapChain);
-	if (FAILED(result))
-	{
-		Fatal("IDXGISwapChain1::QueryInterface() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	for (uint32_t bufferIndex = 0; bufferIndex < NUM_BACK_BUFFERS; bufferIndex++)
-	{
-		ID3D12Resource* backBufferResource = nullptr;
-		Descriptor backBufferRTVHandle = gRHI.RTVStagingDescriptorHeap->GetNewDescriptor();
-
-		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-		rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-		rtvDesc.Texture2D.MipSlice = 0;
-		rtvDesc.Texture2D.PlaneSlice = 0;
-
-		result = gRHI.swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&backBufferResource));
-		if (FAILED(result))
-		{
-			Fatal("IDXGISwapChain4::GetBuffer() failed: " + DXErrorToStr(result));
-			return false;
-		}
-
-		gRHI.device->CreateRenderTargetView(backBufferResource, &rtvDesc, backBufferRTVHandle.CPUHandle);
-
-		gRHI.backBuffers[bufferIndex] = new TextureResource();
-		gRHI.backBuffers[bufferIndex]->desc = backBufferResource->GetDesc();
-		gRHI.backBuffers[bufferIndex]->resource = backBufferResource;
-		gRHI.backBuffers[bufferIndex]->state = D3D12_RESOURCE_STATE_PRESENT;
-		gRHI.backBuffers[bufferIndex]->RTVDescriptor = backBufferRTVHandle;
-	}
-
-	gRHI.frameId = 0;
-
-	return true;
+	Print(pDescription);
 }
+#endif // RHI_VALIDATION_ENABLED
 //=============================================================================
 void DestroyWindowDependentResources()
 {
@@ -112,123 +54,32 @@ RHIBackend::~RHIBackend()
 //=============================================================================
 bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateInfo& createInfo)
 {
-	gRHI.frameBufferWidth = wndData.width;
-	gRHI.frameBufferHeight = wndData.height;
+	frameBufferWidth = wndData.width;
+	frameBufferHeight = wndData.height;
 
-#if RHI_VALIDATION_ENABLED
-	ID3D12Debug* debugController{ nullptr };
-	ID3D12Debug6* debugController6{ nullptr };
-	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-	{
-		if (SUCCEEDED(debugController->QueryInterface(IID_PPV_ARGS(&debugController6))))
-		{
-			debugController6->EnableDebugLayer();
-			debugController6->SetEnableGPUBasedValidation(true);
-		}
-		else
-		{
-			debugController->EnableDebugLayer();
-		}
-	}
-	SafeRelease(debugController6);
-	SafeRelease(debugController);
-#endif // RHI_VALIDATION_ENABLED
+	enableDebugLayer();
+	if (!createAdapter()) return false;
+	if (!createDevice()) return false;
+	configInfoQueue();
+	if (!createAllocator()) return false;
 
-	UINT dxgiFactoryFlags = 0;
-#if RHI_VALIDATION_ENABLED
-	dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-#endif // RHI_VALIDATION_ENABLED
-
-	HRESULT result = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&gRHI.DXGIFactory));
-	if (FAILED(result))
-	{
-		Fatal("CreateDXGIFactory2() failed: " + DXErrorToStr(result));
-		return false;
-	}
-	result = gRHI.DXGIFactory->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&gRHI.adapter));
-	if (FAILED(result))
-	{
-		Fatal("IDXGIFactory7::EnumAdapterByGpuPreference() failed: " + DXErrorToStr(result));
-		return false;
-	}
-	const D3D_FEATURE_LEVEL featureLevels[] = {
-			D3D_FEATURE_LEVEL_12_2,
-			D3D_FEATURE_LEVEL_12_1,
-			D3D_FEATURE_LEVEL_12_0,
-			D3D_FEATURE_LEVEL_11_1,
-			D3D_FEATURE_LEVEL_11_0,
-	};
-	for (auto& featureLevel : featureLevels)
-	{
-		result = D3D12CreateDevice(gRHI.adapter, featureLevel, IID_PPV_ARGS(&gRHI.device));
-		if (SUCCEEDED(result))
-		{
-			Print("Direct3D 12 Feature Level: " + ConvertStr(featureLevel));
-			break;
-		}
-	}
-	if (FAILED(result))
-	{
-		Fatal("D3D12CreateDevice() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-#if RHI_VALIDATION_ENABLED
-	ID3D12InfoQueue* infoQueue{ nullptr };
-	if (SUCCEEDED(gRHI.device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
-	{
-		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
-		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
-		//infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
-
-		std::vector<D3D12_MESSAGE_ID> filtered_messages = {
-			D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
-			D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
-		D3D12_MESSAGE_ID_DRAW_EMPTY_SCISSOR_RECTANGLE
-		};
-
-		D3D12_INFO_QUEUE_FILTER filter = {};
-		filter.DenyList.NumIDs = (UINT)filtered_messages.size();
-		filter.DenyList.pIDList = filtered_messages.data();
-		infoQueue->AddStorageFilterEntries(&filter);
-	}
-	else
-	{
-		Error("Get ID3D12InfoQueue failed: " + DXErrorToStr(result));
-	}
-	SafeRelease(infoQueue);
-#endif // RHI_VALIDATION_ENABLED
-
-	D3D12MA::ALLOCATOR_DESC desc = {};
-	desc.Flags = D3D12MA::ALLOCATOR_FLAG_NONE;
-	desc.pDevice = gRHI.device;
-	desc.pAdapter = gRHI.adapter;
-
-	result = D3D12MA::CreateAllocator(&desc, &gRHI.allocator);
-	if (FAILED(result))
-	{
-		Fatal("CreateAllocator() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	gRHI.graphicsQueue = new QueueD3D12(gRHI.device, D3D12_COMMAND_LIST_TYPE_DIRECT);
-	gRHI.computeQueue = new QueueD3D12(gRHI.device, D3D12_COMMAND_LIST_TYPE_COMPUTE);
-	gRHI.copyQueue = new QueueD3D12(gRHI.device, D3D12_COMMAND_LIST_TYPE_COPY);
+	graphicsQueue = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_DIRECT);
+	computeQueue  = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COMPUTE);
+	copyQueue     = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COPY);
 	if (IsRequestExit())
 	{
-		Fatal("Create Queue failed.");
+		Fatal("Create CommandQueueD3D12 failed.");
 		return false;
 	}
 
-	gRHI.RTVStagingDescriptorHeap = new StagingDescriptorHeap(gRHI.device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_RTV_STAGING_DESCRIPTORS);
-	gRHI.DSVStagingDescriptorHeap = new StagingDescriptorHeap(gRHI.device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, NUM_DSV_STAGING_DESCRIPTORS);
-	gRHI.SRVStagingDescriptorHeap = new StagingDescriptorHeap(gRHI.device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_SRV_STAGING_DESCRIPTORS);
-	gRHI.SamplerRenderPassDescriptorHeap = new RenderPassDescriptorHeap(gRHI.device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 0, NUM_SAMPLER_DESCRIPTORS);
-
+	RTVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_RTV_STAGING_DESCRIPTORS);
+	DSVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, NUM_DSV_STAGING_DESCRIPTORS);
+	SRVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_SRV_STAGING_DESCRIPTORS);
+	samplerRenderPassDescriptorHeap = new RenderPassDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 0, NUM_SAMPLER_DESCRIPTORS);
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
-		gRHI.SRVRenderPassDescriptorHeaps[frameIndex] = new RenderPassDescriptorHeap(gRHI.device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_RESERVED_SRV_DESCRIPTORS, NUM_SRV_RENDER_PASS_USER_DESCRIPTORS);
-		gRHI.ImguiDescriptors[frameIndex] = gRHI.SRVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(IMGUI_RESERVED_DESCRIPTOR_INDEX);
+		SRVRenderPassDescriptorHeaps[frameIndex] = new RenderPassDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_RESERVED_SRV_DESCRIPTORS, NUM_SRV_RENDER_PASS_USER_DESCRIPTORS);
+		ImguiDescriptors[frameIndex] = SRVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(IMGUI_RESERVED_DESCRIPTOR_INDEX);
 	}
 	if (IsRequestExit())
 	{
@@ -305,14 +156,22 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 		samplerDescs[5].MinLOD = 0;
 		samplerDescs[5].MaxLOD = D3D12_FLOAT32_MAX;
 
-		Descriptor samplerDescriptorBlock = gRHI.SamplerRenderPassDescriptorHeap->AllocateUserDescriptorBlock(NUM_SAMPLER_DESCRIPTORS);
+		Descriptor samplerDescriptorBlock = samplerRenderPassDescriptorHeap->AllocateUserDescriptorBlock(NUM_SAMPLER_DESCRIPTORS);
 		D3D12_CPU_DESCRIPTOR_HANDLE currentSamplerDescriptor = samplerDescriptorBlock.CPUHandle;
 
 		for (uint32_t samplerIndex = 0; samplerIndex < NUM_SAMPLER_DESCRIPTORS; samplerIndex++)
 		{
-			gRHI.device->CreateSampler(&samplerDescs[samplerIndex], currentSamplerDescriptor);
-			currentSamplerDescriptor.ptr += gRHI.SamplerRenderPassDescriptorHeap->GetDescriptorSize();
+			device->CreateSampler(&samplerDescs[samplerIndex], currentSamplerDescriptor);
+			currentSamplerDescriptor.ptr += samplerRenderPassDescriptorHeap->GetDescriptorSize();
 		}
+	}
+
+
+	graphicsContext = new GraphicsCommandContextD3D12();
+	if (IsRequestExit())
+	{
+		Fatal("Create GraphicsCommandContextD3D12 failed.");
+		return false;
 	}
 
 	BufferCreationDesc uploadBufferDesc;
@@ -325,12 +184,12 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
-		gRHI.uploadContexts[frameIndex] = new UploadContext(CreateBuffer(uploadBufferDesc), CreateBuffer(uploadTextureDesc));
+		uploadContexts[frameIndex] = new UploadCommandContextD3D12(CreateBuffer(uploadBufferDesc), CreateBuffer(uploadTextureDesc));
 	}
 
 	//The -1 and starting at index 1 accounts for the imgui descriptor.
-	gRHI.FreeReservedDescriptorIndices.resize(NUM_RESERVED_SRV_DESCRIPTORS - 1);
-	std::iota(gRHI.FreeReservedDescriptorIndices.begin(), gRHI.FreeReservedDescriptorIndices.end(), 1);
+	freeReservedDescriptorIndices.resize(NUM_RESERVED_SRV_DESCRIPTORS - 1);
+	std::iota(freeReservedDescriptorIndices.begin(), freeReservedDescriptorIndices.end(), 1);
 
 	if (!CreateWindowDependentResources(wndData.hwnd, { wndData.width, wndData.height })) return false;
 
@@ -412,7 +271,7 @@ void RHIBackend::release()
 	delete RTVStagingDescriptorHeap; RTVStagingDescriptorHeap = nullptr;
 	delete DSVStagingDescriptorHeap; DSVStagingDescriptorHeap = nullptr;
 	delete SRVStagingDescriptorHeap; SRVStagingDescriptorHeap = nullptr;
-	delete SamplerRenderPassDescriptorHeap; SamplerRenderPassDescriptorHeap = nullptr;
+	delete samplerRenderPassDescriptorHeap; samplerRenderPassDescriptorHeap = nullptr;
 
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
@@ -424,7 +283,6 @@ void RHIBackend::release()
 
 	SafeRelease(allocator);
 	SafeRelease(device);
-	SafeRelease(DXGIFactory);
 
 #if defined(_DEBUG)
 	IDXGIDebug1* pDebug = nullptr;
@@ -436,6 +294,224 @@ void RHIBackend::release()
 #endif
 }
 //=============================================================================
+void RHIBackend::enableDebugLayer()
+{
+#if RHI_VALIDATION_ENABLED
+	ComPtr<ID3D12Debug> debugController;
+	if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) return;
+	debugController->EnableDebugLayer();
+
+	ComPtr<ID3D12Debug1> debugController1;
+	if (FAILED(debugController.As(&debugController1))) return;
+	debugController1->SetEnableGPUBasedValidation(TRUE); // TODO: может сильно замедлять работу, поэтому возможно должна быть тонкая настройка
+	debugController1->SetEnableSynchronizedCommandQueueValidation(TRUE);
+
+	ComPtr<ID3D12Debug5> debugController5;
+	if (FAILED(debugController1.As(&debugController5))) return;
+	debugController5->SetEnableAutoName(TRUE);
+#endif // RHI_VALIDATION_ENABLED
+}
+//=============================================================================
+bool RHIBackend::createAdapter()
+{
+	UINT dxgiFactoryFlags = 0;
+#if RHI_VALIDATION_ENABLED
+	dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+#endif // RHI_VALIDATION_ENABLED
+
+	ComPtr<IDXGIFactory> DXGIFactory;
+	HRESULT result = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&DXGIFactory));
+	if (FAILED(result))
+	{
+		Fatal("CreateDXGIFactory2() failed: " + DXErrorToStr(result));
+		return false;
+	}
+	ComPtr<IDXGIFactory7> DXGIFactory7;
+	result = DXGIFactory.As(&DXGIFactory7);
+	if (FAILED(result))
+	{
+		Fatal("IDXGIFactory As IDXGIFactory7 failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	{
+		// при отключении vsync на экране могут быть разрывы
+		BOOL allowTearing = FALSE;
+		if (FAILED(DXGIFactory7->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
+			supportFeatures.allowTearing = false;
+		else
+			supportFeatures.allowTearing = (allowTearing == TRUE);
+	}
+
+	ComPtr<IDXGIAdapter> DXGIAdapter;
+	result = DXGIFactory7->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&DXGIAdapter));
+	if (FAILED(result))
+	{
+		Fatal("IDXGIFactory7::EnumAdapterByGpuPreference() failed: " + DXErrorToStr(result));
+		return false;
+	}
+	result = DXGIAdapter.As(&adapter);
+	if (FAILED(result))
+	{
+		Fatal("DXGIAdapter As DXGIAdapter4 failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	return false;
+}
+//=============================================================================
+bool RHIBackend::createDevice()
+{
+	const D3D_FEATURE_LEVEL featureLevels[] = {
+		D3D_FEATURE_LEVEL_12_2,
+		D3D_FEATURE_LEVEL_12_1,
+		D3D_FEATURE_LEVEL_12_0,
+		D3D_FEATURE_LEVEL_11_1,
+		D3D_FEATURE_LEVEL_11_0,
+	};
+	HRESULT result{};
+	for (auto& featureLevel : featureLevels)
+	{
+
+		result = D3D12CreateDevice(adapter.Get(), featureLevel, IID_PPV_ARGS(&device));
+		if (SUCCEEDED(result))
+		{
+			Print("Direct3D 12 Feature Level: " + ConvertStr(featureLevel));
+			break;
+		}
+	}
+	if (FAILED(result))
+	{
+		Fatal("D3D12CreateDevice() failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	return false;
+}
+//=============================================================================
+void RHIBackend::configInfoQueue()
+{
+#if RHI_VALIDATION_ENABLED
+	ComPtr<ID3D12InfoQueue1> infoQueue{ nullptr };
+	if (SUCCEEDED(device.As(&infoQueue)))
+	{
+		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
+		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
+		//infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
+
+		std::vector<D3D12_MESSAGE_ID> filteredMessages = {
+			D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+			D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
+			D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE, // This warning occurs when using capture frame while graphics debugging.
+			D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE
+		};
+		D3D12_INFO_QUEUE_FILTER filter = {};
+		filter.DenyList.NumIDs         = (UINT)filteredMessages.size();
+		filter.DenyList.pIDList        = filteredMessages.data();
+		infoQueue->AddStorageFilterEntries(&filter);
+
+		infoQueue->RegisterMessageCallback(D3D12MessageFuncion, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, nullptr);
+	}
+#endif // RHI_VALIDATION_ENABLED
+}
+//=============================================================================
+bool RHIBackend::createAllocator()
+{
+	D3D12MA::ALLOCATOR_DESC desc = {};
+	desc.Flags                   = D3D12MA::ALLOCATOR_FLAG_NONE;
+	desc.pDevice                 = device.Get();
+	desc.pAdapter                = adapter.Get();
+
+	HRESULT result = D3D12MA::CreateAllocator(&desc, &allocator);
+	if (FAILED(result))
+	{
+		Fatal("CreateAllocator() failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	return true;
+}
+//=============================================================================
+bool RHIBackend::createSwapChain(const WindowData& wndData)
+{
+	ComPtr<IDXGIFactory2> DXGIFactory;
+	HRESULT result = adapter->GetParent(IID_PPV_ARGS(&DXGIFactory));
+	if (FAILED(result))
+	{
+		Fatal("IDXGIAdapter4::GetParent() failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+	swapChainDesc.Width                 = wndData.width;
+	swapChainDesc.Height                = wndData.height;
+	swapChainDesc.Format                = DXGI_FORMAT_R8G8B8A8_UNORM;
+	swapChainDesc.Stereo                = false;
+	swapChainDesc.SampleDesc            = { 1, 0 };
+	swapChainDesc.BufferUsage           = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.BufferCount           = NUM_BACK_BUFFERS;
+	swapChainDesc.SwapEffect            = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	swapChainDesc.Scaling               = DXGI_SCALING_STRETCH;
+	swapChainDesc.AlphaMode             = DXGI_ALPHA_MODE_UNSPECIFIED;
+	// It is recommended to always allow tearing if tearing support is available.
+	swapChainDesc.Flags = supportFeatures.allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+
+	ComPtr<IDXGISwapChain1> swapChain1;
+	result = DXGIFactory->CreateSwapChainForHwnd(graphicsQueue->GetDeviceQueue().Get(), wndData.hwnd, &swapChainDesc, nullptr, nullptr, &swapChain1);
+	if (FAILED(result))
+	{
+		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	result = DXGIFactory->MakeWindowAssociation(wndData.hwnd, DXGI_MWA_NO_ALT_ENTER);
+	if (FAILED(result))
+	{
+		Fatal("IDXGIFactory2::MakeWindowAssociation() failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	result = swapChain1.As(&swapChain);
+	if (FAILED(result))
+	{
+		Fatal("IDXGISwapChain1::QueryInterface() failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	for (uint32_t bufferIndex = 0; bufferIndex < NUM_BACK_BUFFERS; bufferIndex++)
+	{
+		ComPtr<ID3D12Resource> backBufferResource;
+		result = swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&backBufferResource));
+		if (FAILED(result))
+		{
+			Fatal("IDXGISwapChain4::GetBuffer() failed: " + DXErrorToStr(result));
+			return false;
+		}
+
+		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+		rtvDesc.Format                        = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		rtvDesc.ViewDimension                 = D3D12_RTV_DIMENSION_TEXTURE2D;
+		rtvDesc.Texture2D.MipSlice            = 0;
+		rtvDesc.Texture2D.PlaneSlice          = 0;
+
+		Descriptor backBufferRTVHandle = RTVStagingDescriptorHeap->GetNewDescriptor();
+
+		device->CreateRenderTargetView(backBufferResource.Get(), &rtvDesc, backBufferRTVHandle.CPUHandle);
+
+		backBuffers[bufferIndex] = new TextureResource();
+		backBuffers[bufferIndex]->desc          = backBufferResource->GetDesc();
+		backBuffers[bufferIndex]->resource      = backBufferResource.Get(); здесь ошибка
+		backBuffers[bufferIndex]->state         = D3D12_RESOURCE_STATE_PRESENT;
+		backBuffers[bufferIndex]->RTVDescriptor = backBufferRTVHandle;
+	}
+
+https://www.3dgep.com/learning-directx-12-1/
+https://milty.nl/grad_guide/basic_implementation/d3d12/swap_chain.html
+https://alain.xyz/blog/raw-directx12
+	frameId = 0;
+
+	return true;
+}
 //=============================================================================
 std::unique_ptr<BufferResource> CreateBuffer(const BufferCreationDesc& desc)
 {
@@ -1054,15 +1130,15 @@ std::unique_ptr<PipelineStateObject> CreateComputePipeline(const ComputePipeline
 	return newPipeline;
 }
 //=============================================================================
-std::unique_ptr<GraphicsContext> CreateGraphicsContext()
+std::unique_ptr<GraphicsCommandContextD3D12> CreateGraphicsContext()
 {
-	std::unique_ptr<GraphicsContext> newGraphicsContext = std::make_unique<GraphicsContext>();
+	std::unique_ptr<GraphicsCommandContextD3D12> newGraphicsContext = std::make_unique<GraphicsCommandContextD3D12>();
 	return newGraphicsContext;
 }
 //=============================================================================
-std::unique_ptr<ComputeContext> CreateComputeContext()
+std::unique_ptr<ComputeCommandContextD3D12> CreateComputeContext()
 {
-	std::unique_ptr<ComputeContext> newComputeContext = std::make_unique<ComputeContext>();
+	std::unique_ptr<ComputeCommandContextD3D12> newComputeContext = std::make_unique<ComputeCommandContextD3D12>();
 	return newComputeContext;
 }
 //=============================================================================
@@ -1086,25 +1162,25 @@ void DestroyPipelineStateObject(std::unique_ptr<PipelineStateObject> pso)
 	gRHI.destructionQueues[gRHI.frameId].pipelinesToDestroy.push_back(std::move(pso));
 }
 //=============================================================================
-void DestroyContext(std::unique_ptr<Context> context)
+void DestroyContext(std::unique_ptr<CommandContextD3D12> context)
 {
 	gRHI.destructionQueues[gRHI.frameId].contextsToDestroy.push_back(std::move(context));
 }
 //=============================================================================
-ContextSubmissionResult SubmitContextWork(Context& context)
+ContextSubmissionResult SubmitContextWork(CommandContextD3D12& context)
 {
 	uint64_t fenceResult = 0;
 
 	switch (context.GetCommandType())
 	{
 	case D3D12_COMMAND_LIST_TYPE_DIRECT:
-		fenceResult = gRHI.graphicsQueue->ExecuteCommandList(context.GetCommandList());
+		fenceResult = gRHI.graphicsQueue->ExecuteCommandList(context.GetCommandList().Get());
 		break;
 	case D3D12_COMMAND_LIST_TYPE_COMPUTE:
-		fenceResult = gRHI.computeQueue->ExecuteCommandList(context.GetCommandList());
+		fenceResult = gRHI.computeQueue->ExecuteCommandList(context.GetCommandList().Get());
 		break;
 	case D3D12_COMMAND_LIST_TYPE_COPY:
-		fenceResult = gRHI.copyQueue->ExecuteCommandList(context.GetCommandList());
+		fenceResult = gRHI.copyQueue->ExecuteCommandList(context.GetCommandList().Get());
 		break;
 	default:
 		Fatal("Unsupported submission type.");
@@ -1123,7 +1199,7 @@ ContextSubmissionResult SubmitContextWork(Context& context)
 void WaitOnContextWork(ContextSubmissionResult submission, ContextWaitType waitType)
 {
 	std::pair<uint64_t, D3D12_COMMAND_LIST_TYPE> contextSubmission = gRHI.contextSubmissions[submission.frameId][submission.submissionIndex];
-	QueueD3D12* workSourceQueue = nullptr;
+	CommandQueueD3D12* workSourceQueue = nullptr;
 
 	switch (contextSubmission.second)
 	{

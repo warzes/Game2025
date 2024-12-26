@@ -1,10 +1,11 @@
 ﻿#include "stdafx.h"
 #if RENDER_D3D12
-#include "ContextD3D12.h"
+#include "CommandContextD3D12.h"
 #include "RHIBackendD3D12.h"
 #include "Log.h"
 //=============================================================================
-Context::Context(D3D12_COMMAND_LIST_TYPE commandType) : m_contextType(commandType)
+CommandContextD3D12::CommandContextD3D12(D3D12_COMMAND_LIST_TYPE commandType) 
+	: m_contextType(commandType)
 {
 	HRESULT result;
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
@@ -25,22 +26,12 @@ Context::Context(D3D12_COMMAND_LIST_TYPE commandType) : m_contextType(commandTyp
 	}
 }
 //=============================================================================
-Context::~Context()
-{
-	SafeRelease(m_commandList);
-
-	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
-	{
-		SafeRelease(m_commandAllocators[frameIndex]);
-	}
-}
-//=============================================================================
-void Context::Reset()
+void CommandContextD3D12::Reset()
 {
 	uint32_t frameId = gRHI.GetFrameId();
 
 	m_commandAllocators[frameId]->Reset();
-	m_commandList->Reset(m_commandAllocators[frameId], nullptr);
+	m_commandList->Reset(m_commandAllocators[frameId].Get(), nullptr);
 
 	if (m_contextType != D3D12_COMMAND_LIST_TYPE_COPY)
 	{
@@ -48,7 +39,7 @@ void Context::Reset()
 	}
 }
 //=============================================================================
-void Context::AddBarrier(Resource& resource, D3D12_RESOURCE_STATES newState)
+void CommandContextD3D12::AddBarrier(Resource& resource, D3D12_RESOURCE_STATES newState)
 {
 	if (m_numQueuedBarriers >= MAX_QUEUED_BARRIERS)
 	{
@@ -91,7 +82,7 @@ void Context::AddBarrier(Resource& resource, D3D12_RESOURCE_STATES newState)
 	}
 }
 //=============================================================================
-void Context::FlushBarriers()
+void CommandContextD3D12::FlushBarriers()
 {
 	if (m_numQueuedBarriers > 0)
 	{
@@ -100,7 +91,7 @@ void Context::FlushBarriers()
 	}
 }
 //=============================================================================
-void Context::bindDescriptorHeaps(uint32_t frameIndex)
+void CommandContextD3D12::bindDescriptorHeaps(uint32_t frameIndex)
 {
 	m_currentSRVHeap = &gRHI.GetSRVHeap(frameIndex);
 	m_currentSRVHeap->Reset();
@@ -112,17 +103,17 @@ void Context::bindDescriptorHeaps(uint32_t frameIndex)
 	m_commandList->SetDescriptorHeaps(2, heapsToBind);
 }
 //=============================================================================
-void Context::CopyResource(const Resource& destination, const Resource& source)
+void CommandContextD3D12::CopyResource(const Resource& destination, const Resource& source)
 {
 	m_commandList->CopyResource(destination.resource, source.resource);
 }
 //=============================================================================
-void Context::CopyBufferRegion(Resource& destination, uint64_t destOffset, Resource& source, uint64_t sourceOffset, uint64_t numBytes)
+void CommandContextD3D12::CopyBufferRegion(Resource& destination, uint64_t destOffset, Resource& source, uint64_t sourceOffset, uint64_t numBytes)
 {
 	m_commandList->CopyBufferRegion(destination.resource, destOffset, source.resource, sourceOffset, numBytes);
 }
 //=============================================================================
-void Context::CopyTextureRegion(Resource& destination, Resource& source, size_t sourceOffset, SubResourceLayouts& subResourceLayouts, uint32_t numSubResources)
+void CommandContextD3D12::CopyTextureRegion(Resource& destination, Resource& source, size_t sourceOffset, SubResourceLayouts& subResourceLayouts, uint32_t numSubResources)
 {
 	for (uint32_t subResourceIndex = 0; subResourceIndex < numSubResources; subResourceIndex++)
 	{
@@ -141,11 +132,11 @@ void Context::CopyTextureRegion(Resource& destination, Resource& source, size_t 
 	}
 }
 //=============================================================================
-GraphicsContext::GraphicsContext() : Context(D3D12_COMMAND_LIST_TYPE_DIRECT)
+GraphicsCommandContextD3D12::GraphicsCommandContextD3D12() : CommandContextD3D12(D3D12_COMMAND_LIST_TYPE_DIRECT)
 {
 }
 //=============================================================================
-void GraphicsContext::SetDefaultViewPortAndScissor(glm::ivec2 screenSize)
+void GraphicsCommandContextD3D12::SetDefaultViewPortAndScissor(glm::ivec2 screenSize)
 {
 	D3D12_VIEWPORT viewPort;
 	viewPort.Width = static_cast<float>(screenSize.x);
@@ -165,33 +156,33 @@ void GraphicsContext::SetDefaultViewPortAndScissor(glm::ivec2 screenSize)
 	SetScissorRect(scissor);
 }
 //=============================================================================
-void GraphicsContext::SetViewport(const D3D12_VIEWPORT& viewPort)
+void GraphicsCommandContextD3D12::SetViewport(const D3D12_VIEWPORT& viewPort)
 {
 	m_commandList->RSSetViewports(1, &viewPort);
 }
 //=============================================================================
-void GraphicsContext::SetScissorRect(const D3D12_RECT& rect)
+void GraphicsCommandContextD3D12::SetScissorRect(const D3D12_RECT& rect)
 {
 	m_commandList->RSSetScissorRects(1, &rect);
 }
 //=============================================================================
-void GraphicsContext::SetStencilRef(uint32_t stencilRef)
+void GraphicsCommandContextD3D12::SetStencilRef(uint32_t stencilRef)
 {
 	m_commandList->OMSetStencilRef(stencilRef);
 }
 //=============================================================================
-void GraphicsContext::SetBlendFactor(glm::vec4 blendFactor)
+void GraphicsCommandContextD3D12::SetBlendFactor(glm::vec4 blendFactor)
 {
 	float color[4] = { blendFactor.x, blendFactor.y, blendFactor.z, blendFactor.w };
 	m_commandList->OMSetBlendFactor(color);
 }
 //=============================================================================
-void GraphicsContext::SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY topology)
+void GraphicsCommandContextD3D12::SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY topology)
 {
 	m_commandList->IASetPrimitiveTopology(topology);
 }
 //=============================================================================
-void GraphicsContext::SetPipeline(const PipelineInfo& pipelineBinding)
+void GraphicsCommandContextD3D12::SetPipeline(const PipelineInfo& pipelineBinding)
 {
 	const bool pipelineExpectedBoundExternally = !pipelineBinding.pipeline; //imgui
 
@@ -232,7 +223,7 @@ void GraphicsContext::SetPipeline(const PipelineInfo& pipelineBinding)
 	}
 }
 //=============================================================================
-void GraphicsContext::SetPipelineResources(uint32_t spaceId, const PipelineResourceSpace& resources)
+void GraphicsCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const PipelineResourceSpace& resources)
 {
 	assert(m_currentPipeline);
 	assert(resources.IsLocked());
@@ -316,12 +307,12 @@ void GraphicsContext::SetPipelineResources(uint32_t spaceId, const PipelineResou
 	}
 }
 //=============================================================================
-void GraphicsContext::setTargets(uint32_t numRenderTargets, const D3D12_CPU_DESCRIPTOR_HANDLE renderTargets[], D3D12_CPU_DESCRIPTOR_HANDLE depthStencil)
+void GraphicsCommandContextD3D12::setTargets(uint32_t numRenderTargets, const D3D12_CPU_DESCRIPTOR_HANDLE renderTargets[], D3D12_CPU_DESCRIPTOR_HANDLE depthStencil)
 {
 	m_commandList->OMSetRenderTargets(numRenderTargets, renderTargets, false, depthStencil.ptr != 0 ? &depthStencil : nullptr);
 }
 //=============================================================================
-void GraphicsContext::SetIndexBuffer(const BufferResource& indexBuffer)
+void GraphicsCommandContextD3D12::SetIndexBuffer(const BufferResource& indexBuffer)
 {
 	D3D12_INDEX_BUFFER_VIEW indexBufferView;
 	indexBufferView.Format = indexBuffer.stride == 4 ? DXGI_FORMAT_R32_UINT : indexBuffer.stride == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_UNKNOWN;
@@ -331,68 +322,68 @@ void GraphicsContext::SetIndexBuffer(const BufferResource& indexBuffer)
 	m_commandList->IASetIndexBuffer(&indexBufferView);
 }
 //=============================================================================
-void GraphicsContext::ClearRenderTarget(const TextureResource& target, glm::vec4 color)
+void GraphicsCommandContextD3D12::ClearRenderTarget(const TextureResource& target, glm::vec4 color)
 {
 	m_commandList->ClearRenderTargetView(target.RTVDescriptor.CPUHandle, &color[0], 0, nullptr);
 }
 //=============================================================================
-void GraphicsContext::ClearDepthStencilTarget(const TextureResource& target, float depth, uint8_t stencil)
+void GraphicsCommandContextD3D12::ClearDepthStencilTarget(const TextureResource& target, float depth, uint8_t stencil)
 {
 	m_commandList->ClearDepthStencilView(target.DSVDescriptor.CPUHandle, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, depth, stencil, 0, nullptr);
 }
 //=============================================================================
-void GraphicsContext::DrawFullScreenTriangle()
+void GraphicsCommandContextD3D12::DrawFullScreenTriangle()
 {
 	SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 	m_commandList->IASetIndexBuffer(nullptr);
 	Draw(3);
 }
 //=============================================================================
-void GraphicsContext::Draw(uint32_t vertexCount, uint32_t vertexStartOffset)
+void GraphicsCommandContextD3D12::Draw(uint32_t vertexCount, uint32_t vertexStartOffset)
 {
 	DrawInstanced(vertexCount, 1, vertexStartOffset, 0);
 }
 //=============================================================================
-void GraphicsContext::DrawIndexed(uint32_t indexCount, uint32_t startIndexLocation, uint32_t baseVertexLocation)
+void GraphicsCommandContextD3D12::DrawIndexed(uint32_t indexCount, uint32_t startIndexLocation, uint32_t baseVertexLocation)
 {
 	DrawIndexedInstanced(indexCount, 1, startIndexLocation, baseVertexLocation, 0);
 }
 //=============================================================================
-void GraphicsContext::DrawInstanced(uint32_t vertexCountPerInstance, uint32_t instanceCount, uint32_t startVertexLocation, uint32_t startInstanceLocation)
+void GraphicsCommandContextD3D12::DrawInstanced(uint32_t vertexCountPerInstance, uint32_t instanceCount, uint32_t startVertexLocation, uint32_t startInstanceLocation)
 {
 	m_commandList->DrawInstanced(vertexCountPerInstance, instanceCount, startVertexLocation, startInstanceLocation);
 }
 //=============================================================================
-void GraphicsContext::DrawIndexedInstanced(uint32_t indexCountPerInstance, uint32_t instanceCount, uint32_t startIndexLocation, uint32_t baseVertexLocation, uint32_t startInstanceLocation)
+void GraphicsCommandContextD3D12::DrawIndexedInstanced(uint32_t indexCountPerInstance, uint32_t instanceCount, uint32_t startIndexLocation, uint32_t baseVertexLocation, uint32_t startInstanceLocation)
 {
 	m_commandList->DrawIndexedInstanced(indexCountPerInstance, instanceCount, startIndexLocation, baseVertexLocation, startInstanceLocation);
 }
 //=============================================================================
-void GraphicsContext::Dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
+void GraphicsCommandContextD3D12::Dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
 	m_commandList->Dispatch(groupCountX, groupCountY, groupCountZ);
 }
 //=============================================================================
-void GraphicsContext::Dispatch1D(uint32_t threadCountX, uint32_t groupSizeX)
+void GraphicsCommandContextD3D12::Dispatch1D(uint32_t threadCountX, uint32_t groupSizeX)
 {
 	Dispatch(GetGroupCount(threadCountX, groupSizeX), 1, 1);
 }
 //=============================================================================
-void GraphicsContext::Dispatch2D(uint32_t threadCountX, uint32_t threadCountY, uint32_t groupSizeX, uint32_t groupSizeY)
+void GraphicsCommandContextD3D12::Dispatch2D(uint32_t threadCountX, uint32_t threadCountY, uint32_t groupSizeX, uint32_t groupSizeY)
 {
 	Dispatch(GetGroupCount(threadCountX, groupSizeX), GetGroupCount(threadCountY, groupSizeY), 1);
 }
 //=============================================================================
-void GraphicsContext::Dispatch3D(uint32_t threadCountX, uint32_t threadCountY, uint32_t threadCountZ, uint32_t groupSizeX, uint32_t groupSizeY, uint32_t groupSizeZ)
+void GraphicsCommandContextD3D12::Dispatch3D(uint32_t threadCountX, uint32_t threadCountY, uint32_t threadCountZ, uint32_t groupSizeX, uint32_t groupSizeY, uint32_t groupSizeZ)
 {
 	Dispatch(GetGroupCount(threadCountX, groupSizeX), GetGroupCount(threadCountY, groupSizeY), GetGroupCount(threadCountZ, groupSizeZ));
 }
 //=============================================================================
-ComputeContext::ComputeContext() : Context(D3D12_COMMAND_LIST_TYPE_COMPUTE)
+ComputeCommandContextD3D12::ComputeCommandContextD3D12() : CommandContextD3D12(D3D12_COMMAND_LIST_TYPE_COMPUTE)
 {
 }
 //=============================================================================
-void ComputeContext::SetPipeline(const PipelineInfo& pipelineBinding)
+void ComputeCommandContextD3D12::SetPipeline(const PipelineInfo& pipelineBinding)
 {
 	assert(pipelineBinding.pipeline && pipelineBinding.pipeline->pipelineType == PipelineType::compute);
 
@@ -402,7 +393,7 @@ void ComputeContext::SetPipeline(const PipelineInfo& pipelineBinding)
 	m_currentPipeline = pipelineBinding.pipeline;
 }
 //=============================================================================
-void ComputeContext::SetPipelineResources(uint32_t spaceId, const PipelineResourceSpace& resources)
+void ComputeCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const PipelineResourceSpace& resources)
 {
 	assert(m_currentPipeline);
 	assert(resources.IsLocked());
@@ -465,65 +456,65 @@ void ComputeContext::SetPipelineResources(uint32_t spaceId, const PipelineResour
 	m_commandList->SetComputeRootDescriptorTable(tableMapping.value(), blockStart.GPUHandle);
 }
 //=============================================================================
-void ComputeContext::Dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
+void ComputeCommandContextD3D12::Dispatch(uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
 {
 	m_commandList->Dispatch(groupCountX, groupCountY, groupCountZ);
 }
 //=============================================================================
-void ComputeContext::Dispatch1D(uint32_t threadCountX, uint32_t groupSizeX)
+void ComputeCommandContextD3D12::Dispatch1D(uint32_t threadCountX, uint32_t groupSizeX)
 {
 	Dispatch(GetGroupCount(threadCountX, groupSizeX), 1, 1);
 }
 //=============================================================================
-void ComputeContext::Dispatch2D(uint32_t threadCountX, uint32_t threadCountY, uint32_t groupSizeX, uint32_t groupSizeY)
+void ComputeCommandContextD3D12::Dispatch2D(uint32_t threadCountX, uint32_t threadCountY, uint32_t groupSizeX, uint32_t groupSizeY)
 {
 	Dispatch(GetGroupCount(threadCountX, groupSizeX), GetGroupCount(threadCountY, groupSizeY), 1);
 }
 //=============================================================================
-void ComputeContext::Dispatch3D(uint32_t threadCountX, uint32_t threadCountY, uint32_t threadCountZ, uint32_t groupSizeX, uint32_t groupSizeY, uint32_t groupSizeZ)
+void ComputeCommandContextD3D12::Dispatch3D(uint32_t threadCountX, uint32_t threadCountY, uint32_t threadCountZ, uint32_t groupSizeX, uint32_t groupSizeY, uint32_t groupSizeZ)
 {
 	Dispatch(GetGroupCount(threadCountX, groupSizeX), GetGroupCount(threadCountY, groupSizeY), GetGroupCount(threadCountZ, groupSizeZ));
 }
 //=============================================================================
-UploadContext::UploadContext(std::unique_ptr<BufferResource> bufferUploadHeap, std::unique_ptr<BufferResource> textureUploadHeap)
-	: Context(D3D12_COMMAND_LIST_TYPE_COPY)
+UploadCommandContextD3D12::UploadCommandContextD3D12(std::unique_ptr<BufferResource> bufferUploadHeap, std::unique_ptr<BufferResource> textureUploadHeap)
+	: CommandContextD3D12(D3D12_COMMAND_LIST_TYPE_COPY)
 	, m_bufferUploadHeap(std::move(bufferUploadHeap))
 	, m_textureUploadHeap(std::move(textureUploadHeap))
 {
 }
 //=============================================================================
-UploadContext::~UploadContext()
+UploadCommandContextD3D12::~UploadCommandContextD3D12()
 {
 	//Upload context heaps weren't returned for some reason
 	assert(m_bufferUploadHeap == nullptr);
 	assert(m_textureUploadHeap == nullptr);
 }
 //=============================================================================
-std::unique_ptr<BufferResource> UploadContext::ReturnBufferHeap()
+std::unique_ptr<BufferResource> UploadCommandContextD3D12::ReturnBufferHeap()
 {
 	return std::move(m_bufferUploadHeap);
 }
 //=============================================================================
-std::unique_ptr<BufferResource> UploadContext::ReturnTextureHeap()
+std::unique_ptr<BufferResource> UploadCommandContextD3D12::ReturnTextureHeap()
 {
 	return std::move(m_textureUploadHeap);
 }
 //=============================================================================
-void UploadContext::AddBufferUpload(std::unique_ptr<BufferUpload> bufferUpload)
+void UploadCommandContextD3D12::AddBufferUpload(std::unique_ptr<BufferUpload> bufferUpload)
 {
 	assert(bufferUpload->bufferDataSize <= m_bufferUploadHeap->desc.Width);
 
 	m_bufferUploads.push_back(std::move(bufferUpload));
 }
 //=============================================================================
-void UploadContext::AddTextureUpload(std::unique_ptr<TextureUpload> textureUpload)
+void UploadCommandContextD3D12::AddTextureUpload(std::unique_ptr<TextureUpload> textureUpload)
 {
 	assert(textureUpload->textureDataSize <= m_textureUploadHeap->desc.Width);
 
 	m_textureUploads.push_back(std::move(textureUpload));
 }
 //=============================================================================
-void UploadContext::ProcessUploads()
+void UploadCommandContextD3D12::ProcessUploads()
 {
 	const uint32_t numBufferUploads = static_cast<uint32_t>(m_bufferUploads.size());
 	const uint32_t numTextureUploads = static_cast<uint32_t>(m_textureUploads.size());
@@ -577,7 +568,7 @@ void UploadContext::ProcessUploads()
 	}
 }
 //=============================================================================
-void UploadContext::ResolveProcessedUploads()
+void UploadCommandContextD3D12::ResolveProcessedUploads()
 {
 	for (auto& bufferUploadInProgress : m_bufferUploadsInProgress)
 	{

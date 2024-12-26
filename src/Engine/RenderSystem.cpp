@@ -10,16 +10,12 @@ bool RenderSystem::Create(const WindowData& wndData, const RenderSystemCreateInf
 {
 	if (!gRHI.CreateAPI(wndData, createInfo)) return false;
 
-	m_graphicsContext = CreateGraphicsContext();
-
 	return true;
 }
 //=============================================================================
 void RenderSystem::Destroy()
 {
 	WaitForIdle();
-
-	m_graphicsContext.reset();
 	gRHI.DestroyAPI();
 }
 //=============================================================================

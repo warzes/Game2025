@@ -78,6 +78,11 @@
 #	include <sdkddkver.h>
 
 #	include <Windows.h>
+
+#	if defined(CreateWindow)
+#		undef CreateWindow
+#	endif
+
 #endif // PLATFORM_WINDOWS
 
 #if RENDER_D3D12

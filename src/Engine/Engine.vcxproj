@@ -95,9 +95,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BaseHeader.h" />
-    <ClInclude Include="ContextD3D12.h" />
+    <ClInclude Include="CommandContextD3D12.h" />
     <ClInclude Include="DescriptorHeapD3D12.h" />
-    <ClInclude Include="QueueD3D12.h" />
+    <ClInclude Include="CommandQueueD3D12.h" />
     <ClInclude Include="RenderCoreD3D12.h" />
     <ClInclude Include="EngineApp.h" />
     <ClInclude Include="EngineConfigMacros.h" />
@@ -118,7 +118,7 @@
     <ClInclude Include="WindowSystem.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ContextD3D12.cpp" />
+    <ClCompile Include="CommandContextD3D12.cpp" />
     <ClCompile Include="DescriptorHeapD3D12.cpp" />
     <ClCompile Include="EngineApp.cpp" />
     <ClCompile Include="InputSystemWin32.cpp" />
@@ -126,7 +126,7 @@
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="LogSystem.cpp" />
     <ClCompile Include="MouseWin32.cpp" />
-    <ClCompile Include="QueueD3D12.cpp" />
+    <ClCompile Include="CommandQueueD3D12.cpp" />
     <ClCompile Include="RenderCoreD3D12.cpp" />
     <ClCompile Include="RenderSystem.cpp" />
     <ClCompile Include="RHIBackendD3D12.cpp" />

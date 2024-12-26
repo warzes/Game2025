@@ -17,10 +17,10 @@ constexpr uint8_t PER_PASS_SPACE = 2;
 constexpr uint8_t PER_FRAME_SPACE = 3;
 constexpr uint8_t NUM_RESOURCE_SPACES = 4;
 constexpr uint32_t NUM_RESERVED_SRV_DESCRIPTORS = 8192;
-constexpr uint32_t IMGUI_RESERVED_DESCRIPTOR_INDEX = 0;
 constexpr uint32_t NUM_SRV_RENDER_PASS_USER_DESCRIPTORS = 65536;
 constexpr uint32_t INVALID_RESOURCE_TABLE_INDEX = UINT_MAX;
 constexpr uint32_t MAX_TEXTURE_SUBRESOURCE_COUNT = 32;
+constexpr uint32_t IMGUI_RESERVED_DESCRIPTOR_INDEX = 0;
 static const wchar_t* SHADER_SOURCE_PATH = L"Data/Shaders/";
 static const wchar_t* SHADER_OUTPUT_PATH = L"Data/Shaders/Compiled/";
 static const char* RESOURCE_PATH = "Data/Resources/";
@@ -380,6 +380,11 @@ struct EndOfFrameFences final
 	uint64_t graphicsQueueFence = 0;
 	uint64_t computeQueueFence = 0;
 	uint64_t copyQueueFence = 0;
+};
+
+struct RenderFeatures final
+{
+	bool allowTearing{ false };
 };
 
 #endif // RENDER_D3D12

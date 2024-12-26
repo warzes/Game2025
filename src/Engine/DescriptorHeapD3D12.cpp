@@ -3,7 +3,7 @@
 #include "DescriptorHeapD3D12.h"
 #include "Log.h"
 //=============================================================================
-DescriptorHeap::DescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible)
+DescriptorHeap::DescriptorHeap(ComPtr<ID3D12Device> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible)
 	: m_heapType(heapType)
 	, m_maxDescriptors(numDescriptors)
 	, m_isShaderVisible(isShaderVisible)
@@ -31,12 +31,8 @@ DescriptorHeap::DescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE 
 	m_descriptorSize = device->GetDescriptorHandleIncrementSize(m_heapType);
 }
 //=============================================================================
-DescriptorHeap::~DescriptorHeap()
-{
-	SafeRelease(m_descriptorHeap);
-}
-//=============================================================================
-StagingDescriptorHeap::StagingDescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors) : DescriptorHeap(device, heapType, numDescriptors, false)
+StagingDescriptorHeap::StagingDescriptorHeap(ComPtr<ID3D12Device> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors) 
+	: DescriptorHeap(device, heapType, numDescriptors, false)
 {
 	m_freeDescriptors.reserve(numDescriptors);
 }
@@ -96,7 +92,7 @@ void StagingDescriptorHeap::FreeDescriptor(Descriptor descriptor)
 	m_activeHandleCount--;
 }
 //=============================================================================
-RenderPassDescriptorHeap::RenderPassDescriptorHeap(ID3D12Device* device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t reservedCount, uint32_t userCount)
+RenderPassDescriptorHeap::RenderPassDescriptorHeap(ComPtr<ID3D12Device> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t reservedCount, uint32_t userCount)
 	: DescriptorHeap(device, heapType, reservedCount + userCount, true)
 	, m_reservedHandleCount(reservedCount)
 	, m_currentDescriptorIndex(reservedCount)

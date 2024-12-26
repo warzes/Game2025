@@ -26,20 +26,20 @@
     <ClCompile Include="RenderSystem.cpp">
       <Filter>RHI</Filter>
     </ClCompile>
+    <ClCompile Include="RenderCoreD3D12.cpp">
+      <Filter>RHI\Direct3D12\old</Filter>
+    </ClCompile>
     <ClCompile Include="RHIBackendD3D12.cpp">
+      <Filter>RHI\Direct3D12\old</Filter>
+    </ClCompile>
+    <ClCompile Include="CommandQueueD3D12.cpp">
       <Filter>RHI\Direct3D12</Filter>
     </ClCompile>
-    <ClCompile Include="QueueD3D12.cpp">
-      <Filter>RHI\Direct3D12\Resouces</Filter>
+    <ClCompile Include="CommandContextD3D12.cpp">
+      <Filter>RHI\Direct3D12\old</Filter>
     </ClCompile>
     <ClCompile Include="DescriptorHeapD3D12.cpp">
-      <Filter>RHI\Direct3D12\Resouces</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderCoreD3D12.cpp">
       <Filter>RHI\Direct3D12</Filter>
-    </ClCompile>
-    <ClCompile Include="ContextD3D12.cpp">
-      <Filter>RHI\Direct3D12\Resouces</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -93,18 +93,18 @@
       <Filter>RHI</Filter>
     </ClInclude>
     <ClInclude Include="RenderCoreD3D12.h">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClInclude>
-    <ClInclude Include="QueueD3D12.h">
-      <Filter>RHI\Direct3D12\Resouces</Filter>
-    </ClInclude>
-    <ClInclude Include="DescriptorHeapD3D12.h">
-      <Filter>RHI\Direct3D12\Resouces</Filter>
-    </ClInclude>
-    <ClInclude Include="ContextD3D12.h">
-      <Filter>RHI\Direct3D12\Resouces</Filter>
+      <Filter>RHI\Direct3D12\old</Filter>
     </ClInclude>
     <ClInclude Include="RHIBackendD3D12.h">
+      <Filter>RHI\Direct3D12\old</Filter>
+    </ClInclude>
+    <ClInclude Include="CommandQueueD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="CommandContextD3D12.h">
+      <Filter>RHI\Direct3D12\old</Filter>
+    </ClInclude>
+    <ClInclude Include="DescriptorHeapD3D12.h">
       <Filter>RHI\Direct3D12</Filter>
     </ClInclude>
   </ItemGroup>
@@ -138,6 +138,9 @@
     </Filter>
     <Filter Include="RHI\Direct3D12\Resouces">
       <UniqueIdentifier>{1fd1c4a9-d80d-49b6-8019-2c7f360c8442}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RHI\Direct3D12\old">
+      <UniqueIdentifier>{92dc392e-35cd-401d-82fd-47a14b99f3db}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

@@ -3,9 +3,9 @@
 #if RENDER_D3D12
 
 #include "RenderCoreD3D12.h"
-#include "ContextD3D12.h"
+#include "CommandContextD3D12.h"
 #include "RHIBackendD3D12.h"
-#include "QueueD3D12.h"
+#include "CommandQueueD3D12.h"
 #include "DescriptorHeapD3D12.h"
 
 struct WindowData;
@@ -15,7 +15,7 @@ struct DestructionQueue final
 	std::vector<std::unique_ptr<BufferResource>>      buffersToDestroy;
 	std::vector<std::unique_ptr<TextureResource>>     texturesToDestroy;
 	std::vector<std::unique_ptr<PipelineStateObject>> pipelinesToDestroy;
-	std::vector<std::unique_ptr<Context>>             contextsToDestroy;
+	std::vector<std::unique_ptr<CommandContextD3D12>>             contextsToDestroy;
 };
 
 class RHIBackend final
@@ -32,33 +32,41 @@ public:
 	void Present();
 
 	uint32_t GetFrameId() const { return frameId; }
-	RenderPassDescriptorHeap& GetSamplerHeap() { return *SamplerRenderPassDescriptorHeap; }
+	RenderPassDescriptorHeap& GetSamplerHeap() { return *samplerRenderPassDescriptorHeap; }
 	RenderPassDescriptorHeap& GetSRVHeap(uint32_t frameIndex) { return *SRVRenderPassDescriptorHeaps[frameIndex]; }
 
 	TextureResource& GetCurrentBackBuffer();
 
 	Descriptor& GetImguiDescriptor(uint32_t index) { return ImguiDescriptors[index]; }
-	UploadContext& GetUploadContextForCurrentFrame() { return *uploadContexts[frameId]; }
+	UploadCommandContextD3D12& GetUploadContextForCurrentFrame() { return *uploadContexts[frameId]; }
 
-	IDXGIFactory7* DXGIFactory{ nullptr };
-	IDXGIAdapter4* adapter{ nullptr };
-	ID3D12Device14* device{ nullptr };
-	D3D12MA::Allocator* allocator{ nullptr };
+	RenderFeatures               supportFeatures{};
+	ComPtr<IDXGIAdapter4>        adapter{ nullptr };
+	ComPtr<ID3D12Device14>       device{ nullptr };
+	ComPtr<D3D12MA::Allocator>   allocator{ nullptr };
 
-	QueueD3D12* graphicsQueue{ nullptr };
-	QueueD3D12* computeQueue{ nullptr };
-	QueueD3D12* copyQueue{ nullptr };
+	CommandQueueD3D12*           graphicsQueue{ nullptr };
+	CommandQueueD3D12*           computeQueue{ nullptr };
+	CommandQueueD3D12*           copyQueue{ nullptr };
 
-	StagingDescriptorHeap* RTVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeap* DSVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeap* SRVStagingDescriptorHeap{ nullptr };
-	std::array<Descriptor, NUM_FRAMES_IN_FLIGHT> ImguiDescriptors;
-	std::vector<uint32_t>                        FreeReservedDescriptorIndices;
-	RenderPassDescriptorHeap* SamplerRenderPassDescriptorHeap{ nullptr };
-	std::array<RenderPassDescriptorHeap*, NUM_FRAMES_IN_FLIGHT> SRVRenderPassDescriptorHeaps = { nullptr };
+	StagingDescriptorHeap*       RTVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeap*       DSVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeap*       SRVStagingDescriptorHeap{ nullptr };
+	RenderPassDescriptorHeap*    samplerRenderPassDescriptorHeap{ nullptr };
+	RenderPassDescriptorHeap*    SRVRenderPassDescriptorHeaps[NUM_FRAMES_IN_FLIGHT]{};
+	Descriptor                   ImguiDescriptors[NUM_FRAMES_IN_FLIGHT]{};
 
-	IDXGISwapChain4* swapChain{ nullptr };
-	std::array<TextureResource*, NUM_BACK_BUFFERS> backBuffers;
+	GraphicsCommandContextD3D12* graphicsContext{ nullptr };
+	UploadCommandContextD3D12*   uploadContexts[NUM_FRAMES_IN_FLIGHT]{};
+
+	std::vector<uint32_t>        freeReservedDescriptorIndices;
+
+	ComPtr<IDXGISwapChain4>      swapChain;
+	TextureResource*             backBuffers[NUM_BACK_BUFFERS]{};
+
+
+
+
 
 	uint32_t            frameBufferWidth{ 0 };
 	uint32_t            frameBufferHeight{ 0 };
@@ -67,11 +75,17 @@ public:
 
 	std::array<EndOfFrameFences, NUM_FRAMES_IN_FLIGHT> endOfFrameFences;
 
-	std::array<UploadContext*, NUM_FRAMES_IN_FLIGHT> uploadContexts;
+
 	std::array<std::vector<std::pair<uint64_t, D3D12_COMMAND_LIST_TYPE>>, NUM_FRAMES_IN_FLIGHT> contextSubmissions;
 	std::array<DestructionQueue, NUM_FRAMES_IN_FLIGHT> destructionQueues;
 
 private:
+	void enableDebugLayer();
+	bool createAdapter();
+	bool createDevice();
+	void configInfoQueue();
+	bool createAllocator();
+	bool createSwapChain(const WindowData& wndData);
 	void release();
 };
 
@@ -85,16 +99,16 @@ std::unique_ptr<TextureResource>     CreateTextureFromFile(const std::string& te
 std::unique_ptr<Shader>              CreateShader(const ShaderCreationDesc& desc);
 std::unique_ptr<PipelineStateObject> CreateGraphicsPipeline(const GraphicsPipelineDesc& desc, const PipelineResourceLayout& layout);
 std::unique_ptr<PipelineStateObject> CreateComputePipeline(const ComputePipelineDesc& desc, const PipelineResourceLayout& layout);
-std::unique_ptr<GraphicsContext>     CreateGraphicsContext();
-std::unique_ptr<ComputeContext>      CreateComputeContext();
+std::unique_ptr<GraphicsCommandContextD3D12>     CreateGraphicsContext();
+std::unique_ptr<ComputeCommandContextD3D12>      CreateComputeContext();
 
 void DestroyBuffer(std::unique_ptr<BufferResource> buffer);
 void DestroyTexture(std::unique_ptr<TextureResource> texture);
 void DestroyShader(std::unique_ptr<Shader> shader);
 void DestroyPipelineStateObject(std::unique_ptr<PipelineStateObject> pso);
-void DestroyContext(std::unique_ptr<Context> context);
+void DestroyContext(std::unique_ptr<CommandContextD3D12> context);
 
-ContextSubmissionResult SubmitContextWork(Context& context);
+ContextSubmissionResult SubmitContextWork(CommandContextD3D12& context);
 void WaitOnContextWork(ContextSubmissionResult submission, ContextWaitType waitType);
 void WaitForIdle();
 

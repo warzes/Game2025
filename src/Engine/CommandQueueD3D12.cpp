@@ -1,13 +1,16 @@
 ﻿#include "stdafx.h"
 #if RENDER_D3D12
-#include "QueueD3D12.h"
-#include "Log.h"
+#include "CommandQueueD3D12.h"
 #include "RenderCoreD3D12.h"
+#include "Log.h"
 //=============================================================================
-QueueD3D12::QueueD3D12(ID3D12Device* device, D3D12_COMMAND_LIST_TYPE commandType) : m_queueType(commandType)
+CommandQueueD3D12::CommandQueueD3D12(ComPtr<ID3D12Device> device, D3D12_COMMAND_LIST_TYPE commandType)
+	: m_queueType(commandType)
 {
 	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
 	queueDesc.Type                     = m_queueType;
+	queueDesc.Priority                 = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+	queueDesc.Flags                    = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	queueDesc.NodeMask                 = 0;
 	HRESULT result = device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&m_queue));
 	if (FAILED(result))
@@ -38,20 +41,18 @@ QueueD3D12::QueueD3D12(ID3D12Device* device, D3D12_COMMAND_LIST_TYPE commandType
 	}
 }
 //=============================================================================
-QueueD3D12::~QueueD3D12()
+CommandQueueD3D12::~CommandQueueD3D12()
 {
 	CloseHandle(m_fenceEventHandle);
-	SafeRelease(m_fence);
-	SafeRelease(m_queue);
 }
 //=============================================================================
-uint64_t QueueD3D12::PollCurrentFenceValue()
+uint64_t CommandQueueD3D12::PollCurrentFenceValue()
 {
 	m_lastCompletedFenceValue = (std::max)(m_lastCompletedFenceValue, m_fence->GetCompletedValue());
 	return m_lastCompletedFenceValue;
 }
 //=============================================================================
-bool QueueD3D12::IsFenceComplete(uint64_t fenceValue)
+bool CommandQueueD3D12::IsFenceComplete(uint64_t fenceValue)
 {
 	if (fenceValue > m_lastCompletedFenceValue)
 	{
@@ -61,22 +62,22 @@ bool QueueD3D12::IsFenceComplete(uint64_t fenceValue)
 	return fenceValue <= m_lastCompletedFenceValue;
 }
 //=============================================================================
-void QueueD3D12::InsertWait(uint64_t fenceValue)
+void CommandQueueD3D12::InsertWait(uint64_t fenceValue)
 {
-	m_queue->Wait(m_fence, fenceValue);
+	m_queue->Wait(m_fence.Get(), fenceValue);
 }
 //=============================================================================
-void QueueD3D12::InsertWaitForQueueFence(QueueD3D12* otherQueue, uint64_t fenceValue)
+void CommandQueueD3D12::InsertWaitForQueueFence(CommandQueueD3D12* otherQueue, uint64_t fenceValue)
 {
-	m_queue->Wait(otherQueue->GetFence(), fenceValue);
+	m_queue->Wait(otherQueue->GetFence().Get(), fenceValue);
 }
 //=============================================================================
-void QueueD3D12::InsertWaitForQueue(QueueD3D12* otherQueue)
+void CommandQueueD3D12::InsertWaitForQueue(CommandQueueD3D12* otherQueue)
 {
-	m_queue->Wait(otherQueue->GetFence(), otherQueue->GetNextFenceValue() - 1);
+	m_queue->Wait(otherQueue->GetFence().Get(), otherQueue->GetNextFenceValue() - 1);
 }
 //=============================================================================
-void QueueD3D12::WaitForFenceCPUBlocking(uint64_t fenceValue)
+void CommandQueueD3D12::WaitForFenceCPUBlocking(uint64_t fenceValue)
 {
 	if (IsFenceComplete(fenceValue)) return;
 
@@ -89,12 +90,12 @@ void QueueD3D12::WaitForFenceCPUBlocking(uint64_t fenceValue)
 	}
 }
 //=============================================================================
-void QueueD3D12::WaitForIdle()
+void CommandQueueD3D12::WaitForIdle()
 {
 	WaitForFenceCPUBlocking(m_nextFenceValue - 1);
 }
 //=============================================================================
-uint64_t QueueD3D12::ExecuteCommandList(ID3D12CommandList* commandList)
+uint64_t CommandQueueD3D12::ExecuteCommandList(ID3D12CommandList* commandList)
 {
 	HRESULT result = static_cast<ID3D12GraphicsCommandList*>(commandList)->Close();
 	if (FAILED(result))
@@ -108,11 +109,11 @@ uint64_t QueueD3D12::ExecuteCommandList(ID3D12CommandList* commandList)
 	return SignalFence();
 }
 //=============================================================================
-uint64_t QueueD3D12::SignalFence()
+uint64_t CommandQueueD3D12::SignalFence()
 {
 	std::lock_guard<std::mutex> lockGuard(m_fenceMutex);
 
-	m_queue->Signal(m_fence, m_nextFenceValue);
+	m_queue->Signal(m_fence.Get(), m_nextFenceValue);
 
 	return m_nextFenceValue++;
 }

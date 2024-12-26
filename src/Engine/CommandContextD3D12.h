@@ -4,16 +4,14 @@
 
 #include "DescriptorHeapD3D12.h"
 
-// TODO: rename FCommandContext
-
-class Context
+class CommandContextD3D12
 {
 public:
-	Context(D3D12_COMMAND_LIST_TYPE commandType);
-	virtual ~Context();
+	CommandContextD3D12(D3D12_COMMAND_LIST_TYPE commandType);
+	virtual ~CommandContextD3D12() = default;
 
-	D3D12_COMMAND_LIST_TYPE GetCommandType() { return m_contextType; }
-	ID3D12GraphicsCommandList* GetCommandList() { return m_commandList; }
+	auto GetCommandType() { return m_contextType; }
+	auto GetCommandList() { return m_commandList; }
 
 	void Reset();
 	void AddBarrier(Resource& resource, D3D12_RESOURCE_STATES newState);
@@ -25,20 +23,20 @@ public:
 protected:
 	void bindDescriptorHeaps(uint32_t frameIndex);
 
-	D3D12_COMMAND_LIST_TYPE                                                 m_contextType{ D3D12_COMMAND_LIST_TYPE_DIRECT };
-	ID3D12GraphicsCommandList4*                                             m_commandList{ nullptr };
-	std::array<ID3D12DescriptorHeap*, D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES> m_currentDescriptorHeaps{ nullptr };
-	std::array<ID3D12CommandAllocator*, NUM_FRAMES_IN_FLIGHT>               m_commandAllocators{ nullptr };
-	std::array<D3D12_RESOURCE_BARRIER, MAX_QUEUED_BARRIERS>                 m_resourceBarriers{};
-	uint32_t                                                                m_numQueuedBarriers{ 0 };
-	RenderPassDescriptorHeap*                                               m_currentSRVHeap{ nullptr };
-	D3D12_CPU_DESCRIPTOR_HANDLE                                             m_currentSRVHeapHandle{ 0 };
+	D3D12_COMMAND_LIST_TYPE                                                        m_contextType{ D3D12_COMMAND_LIST_TYPE_DIRECT };
+	ComPtr<ID3D12GraphicsCommandList10>                                            m_commandList{ nullptr };
+	std::array<ComPtr<ID3D12DescriptorHeap>, D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES> m_currentDescriptorHeaps;
+	std::array<ComPtr<ID3D12CommandAllocator>, NUM_FRAMES_IN_FLIGHT>               m_commandAllocators;
+	std::array<D3D12_RESOURCE_BARRIER, MAX_QUEUED_BARRIERS>                        m_resourceBarriers{};
+	uint32_t                                                                       m_numQueuedBarriers{ 0 };
+	RenderPassDescriptorHeap*                                                      m_currentSRVHeap{ nullptr };
+	D3D12_CPU_DESCRIPTOR_HANDLE                                                    m_currentSRVHeapHandle{ 0 };
 };
 
-class GraphicsContext final : public Context
+class GraphicsCommandContextD3D12 final : public CommandContextD3D12
 {
 public:
-	GraphicsContext();
+	GraphicsCommandContextD3D12();
 
 	void SetDefaultViewPortAndScissor(glm::ivec2 screenSize);
 	void SetViewport(const D3D12_VIEWPORT& viewPort);
@@ -67,10 +65,10 @@ private:
 	PipelineStateObject* m_currentPipeline{ nullptr };
 };
 
-class ComputeContext final : public Context
+class ComputeCommandContextD3D12 final : public CommandContextD3D12
 {
 public:
-	ComputeContext();
+	ComputeCommandContextD3D12();
 
 	void SetPipeline(const PipelineInfo& pipelineBinding);
 	void SetPipelineResources(uint32_t spaceId, const PipelineResourceSpace& resources);
@@ -83,11 +81,11 @@ private:
 	PipelineStateObject* m_currentPipeline{ nullptr };
 };
 
-class UploadContext final : public Context
+class UploadCommandContextD3D12 final : public CommandContextD3D12
 {
 public:
-	UploadContext(std::unique_ptr<BufferResource> bufferUploadHeap, std::unique_ptr<BufferResource> textureUploadHeap);
-	~UploadContext();
+	UploadCommandContextD3D12(std::unique_ptr<BufferResource> bufferUploadHeap, std::unique_ptr<BufferResource> textureUploadHeap);
+	~UploadCommandContextD3D12();
 
 	std::unique_ptr<BufferResource> ReturnBufferHeap();
 	std::unique_ptr<BufferResource> ReturnTextureHeap();
