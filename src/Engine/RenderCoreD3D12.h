@@ -4,26 +4,26 @@
 
 #include "RenderCore.h"
 
-constexpr uint32_t NUM_FRAMES_IN_FLIGHT = 2;
-constexpr uint32_t NUM_BACK_BUFFERS = 3;
-constexpr uint32_t NUM_RTV_STAGING_DESCRIPTORS = 256;
-constexpr uint32_t NUM_DSV_STAGING_DESCRIPTORS = 32;
-constexpr uint32_t NUM_SRV_STAGING_DESCRIPTORS = 4096;
-constexpr uint32_t NUM_SAMPLER_DESCRIPTORS = 6;
-constexpr uint32_t MAX_QUEUED_BARRIERS = 16;
-constexpr uint8_t PER_OBJECT_SPACE = 0;
-constexpr uint8_t PER_MATERIAL_SPACE = 1;
-constexpr uint8_t PER_PASS_SPACE = 2;
-constexpr uint8_t PER_FRAME_SPACE = 3;
-constexpr uint8_t NUM_RESOURCE_SPACES = 4;
-constexpr uint32_t NUM_RESERVED_SRV_DESCRIPTORS = 8192;
-constexpr uint32_t NUM_SRV_RENDER_PASS_USER_DESCRIPTORS = 65536;
-constexpr uint32_t INVALID_RESOURCE_TABLE_INDEX = UINT_MAX;
-constexpr uint32_t MAX_TEXTURE_SUBRESOURCE_COUNT = 32;
-constexpr uint32_t IMGUI_RESERVED_DESCRIPTOR_INDEX = 0;
+constexpr uint32_t    NUM_FRAMES_IN_FLIGHT = 2;
+constexpr uint32_t    NUM_BACK_BUFFERS = 3;
+constexpr uint32_t    NUM_RTV_STAGING_DESCRIPTORS = 256;
+constexpr uint32_t    NUM_DSV_STAGING_DESCRIPTORS = 32;
+constexpr uint32_t    NUM_SRV_STAGING_DESCRIPTORS = 4096;
+constexpr uint32_t    NUM_SAMPLER_DESCRIPTORS = 6;
+constexpr uint32_t    MAX_QUEUED_BARRIERS = 16;
+constexpr uint8_t     PER_OBJECT_SPACE = 0;
+constexpr uint8_t     PER_MATERIAL_SPACE = 1;
+constexpr uint8_t     PER_PASS_SPACE = 2;
+constexpr uint8_t     PER_FRAME_SPACE = 3;
+constexpr uint8_t     NUM_RESOURCE_SPACES = 4;
+constexpr uint32_t    NUM_RESERVED_SRV_DESCRIPTORS = 8192;
+constexpr uint32_t    NUM_SRV_RENDER_PASS_USER_DESCRIPTORS = 65536;
+constexpr uint32_t    INVALID_RESOURCE_TABLE_INDEX = UINT_MAX;
+constexpr uint32_t    MAX_TEXTURE_SUBRESOURCE_COUNT = 32;
+constexpr uint32_t    IMGUI_RESERVED_DESCRIPTOR_INDEX = 0;
 static const wchar_t* SHADER_SOURCE_PATH = L"Data/Shaders/";
 static const wchar_t* SHADER_OUTPUT_PATH = L"Data/Shaders/Compiled/";
-static const char* RESOURCE_PATH = "Data/Resources/";
+static const char*    RESOURCE_PATH = "Data/Resources/";
 
 using SubResourceLayouts = std::array<D3D12_PLACED_SUBRESOURCE_FOOTPRINT, MAX_TEXTURE_SUBRESOURCE_COUNT>;
 
@@ -107,16 +107,6 @@ inline TextureViewFlags operator&(TextureViewFlags a, TextureViewFlags b)
 	return static_cast<TextureViewFlags>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
 }
 
-template <class T>
-void SafeRelease(T& ppT)
-{
-	if (ppT)
-	{
-		ppT->Release();
-		ppT = nullptr;
-	}
-}
-
 const std::string DXErrorToStr(HRESULT hr);
 const std::string ConvertStr(D3D_FEATURE_LEVEL level);
 
@@ -168,14 +158,14 @@ struct Descriptor final
 
 struct Resource
 {
-	GPUResourceType           type{ GPUResourceType::buffer };
-	D3D12_RESOURCE_DESC       desc{};
-	ID3D12Resource*           resource{ nullptr };
-	D3D12MA::Allocation*      allocation{ nullptr };
-	D3D12_GPU_VIRTUAL_ADDRESS virtualAddress{ 0 };
-	D3D12_RESOURCE_STATES     state{ D3D12_RESOURCE_STATE_COMMON };
-	bool                      isReady{ false };
-	uint32_t                  descriptorHeapIndex{ INVALID_RESOURCE_TABLE_INDEX };
+	GPUResourceType             type{ GPUResourceType::buffer };
+	D3D12_RESOURCE_DESC         desc{};
+	ComPtr<ID3D12Resource>      resource{ nullptr };
+	ComPtr<D3D12MA::Allocation> allocation{ nullptr };
+	D3D12_GPU_VIRTUAL_ADDRESS   virtualAddress{ 0 };
+	D3D12_RESOURCE_STATES       state{ D3D12_RESOURCE_STATE_COMMON };
+	bool                        isReady{ false };
+	uint32_t                    descriptorHeapIndex{ INVALID_RESOURCE_TABLE_INDEX };
 };
 
 struct BufferResource final : public Resource
@@ -267,7 +257,7 @@ struct ShaderCreationDesc final
 
 struct Shader final
 {
-	IDxcBlob* shaderBlob{ nullptr };
+	ComPtr<IDxcBlob> shaderBlob;
 };
 
 struct GraphicsPipelineDesc final
@@ -321,8 +311,7 @@ inline GraphicsPipelineDesc GetDefaultGraphicsPipelineDesc()
 	desc.depthStencilDesc.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
 	desc.depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
 
-	const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
-	{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+	const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp = { D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
 
 	desc.depthStencilDesc.FrontFace = defaultStencilOp;
 	desc.depthStencilDesc.BackFace = defaultStencilOp;
@@ -346,10 +335,10 @@ struct PipelineResourceMapping final
 
 struct PipelineStateObject final
 {
-	ID3D12PipelineState*    pipeline{ nullptr };
-	ID3D12RootSignature*    rootSignature{ nullptr };
-	PipelineType            pipelineType{ PipelineType::graphics };
-	PipelineResourceMapping pipelineResourceMapping;
+	ComPtr<ID3D12PipelineState> pipeline;
+	ComPtr<ID3D12RootSignature> rootSignature;
+	PipelineType                pipelineType{ PipelineType::graphics };
+	PipelineResourceMapping     pipelineResourceMapping;
 };
 
 struct PipelineInfo final

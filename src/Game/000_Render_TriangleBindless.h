@@ -7,7 +7,6 @@ void ExampleRender000()
 	if (engine.Create(engineAppCreateInfo))
 	{
 		auto& rhi = engine.GetRenderSystem();
-		auto graphicsContext = rhi.GetGraphicsContext();
 
 		struct TriangleVertex
 		{
@@ -92,26 +91,26 @@ void ExampleRender000()
 
 			TextureResource& backBuffer = gRHI.GetCurrentBackBuffer();
 
-			graphicsContext->Reset();
-			graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			graphicsContext->FlushBarriers();
+			gRHI.graphicsContext->Reset();
+			gRHI.graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			gRHI.graphicsContext->FlushBarriers();
 
-			graphicsContext->ClearRenderTarget(backBuffer, glm::vec4(0.3f, 0.3f, 0.8f, 1.0f));
+			gRHI.graphicsContext->ClearRenderTarget(backBuffer, glm::vec4(0.3f, 0.3f, 0.8f, 1.0f));
 
 			PipelineInfo pipeline;
 			pipeline.pipeline = mTrianglePSO.get();
 			pipeline.renderTargets.push_back(&backBuffer);
 
-			graphicsContext->SetPipeline(pipeline);
-			graphicsContext->SetPipelineResources(PER_OBJECT_SPACE, mTrianglePerObjectSpace);
-			graphicsContext->SetDefaultViewPortAndScissor(rhi.GetFrameBufferSize());
-			graphicsContext->SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			graphicsContext->Draw(3);
+			gRHI.graphicsContext->SetPipeline(pipeline);
+			gRHI.graphicsContext->SetPipelineResources(PER_OBJECT_SPACE, mTrianglePerObjectSpace);
+			gRHI.graphicsContext->SetDefaultViewPortAndScissor(rhi.GetFrameBufferSize());
+			gRHI.graphicsContext->SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			gRHI.graphicsContext->Draw(3);
 
-			graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
-			graphicsContext->FlushBarriers();
+			gRHI.graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
+			gRHI.graphicsContext->FlushBarriers();
 
-			SubmitContextWork(*graphicsContext);
+			SubmitContextWork(*gRHI.graphicsContext);
 
 			engine.EndFrame();
 		}

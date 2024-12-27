@@ -63,7 +63,7 @@ void CommandContextD3D12::AddBarrier(Resource& resource, D3D12_RESOURCE_STATES n
 		m_numQueuedBarriers++;
 
 		barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrierDesc.Transition.pResource = resource.resource;
+		barrierDesc.Transition.pResource = resource.resource.Get();
 		barrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		barrierDesc.Transition.StateBefore = oldState;
 		barrierDesc.Transition.StateAfter = newState;
@@ -78,7 +78,7 @@ void CommandContextD3D12::AddBarrier(Resource& resource, D3D12_RESOURCE_STATES n
 
 		barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
 		barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-		barrierDesc.UAV.pResource = resource.resource;
+		barrierDesc.UAV.pResource = resource.resource.Get();
 	}
 }
 //=============================================================================
@@ -97,20 +97,20 @@ void CommandContextD3D12::bindDescriptorHeaps(uint32_t frameIndex)
 	m_currentSRVHeap->Reset();
 
 	ID3D12DescriptorHeap* heapsToBind[2];
-	heapsToBind[0] = gRHI.GetSRVHeap(frameIndex).GetHeap();
-	heapsToBind[1] = gRHI.GetSamplerHeap().GetHeap();
+	heapsToBind[0] = gRHI.GetSRVHeap(frameIndex).GetHeap().Get();
+	heapsToBind[1] = gRHI.GetSamplerHeap().GetHeap().Get();
 
 	m_commandList->SetDescriptorHeaps(2, heapsToBind);
 }
 //=============================================================================
 void CommandContextD3D12::CopyResource(const Resource& destination, const Resource& source)
 {
-	m_commandList->CopyResource(destination.resource, source.resource);
+	m_commandList->CopyResource(destination.resource.Get(), source.resource.Get());
 }
 //=============================================================================
 void CommandContextD3D12::CopyBufferRegion(Resource& destination, uint64_t destOffset, Resource& source, uint64_t sourceOffset, uint64_t numBytes)
 {
-	m_commandList->CopyBufferRegion(destination.resource, destOffset, source.resource, sourceOffset, numBytes);
+	m_commandList->CopyBufferRegion(destination.resource.Get(), destOffset, source.resource.Get(), sourceOffset, numBytes);
 }
 //=============================================================================
 void CommandContextD3D12::CopyTextureRegion(Resource& destination, Resource& source, size_t sourceOffset, SubResourceLayouts& subResourceLayouts, uint32_t numSubResources)
@@ -118,12 +118,12 @@ void CommandContextD3D12::CopyTextureRegion(Resource& destination, Resource& sou
 	for (uint32_t subResourceIndex = 0; subResourceIndex < numSubResources; subResourceIndex++)
 	{
 		D3D12_TEXTURE_COPY_LOCATION destinationLocation = {};
-		destinationLocation.pResource = destination.resource;
+		destinationLocation.pResource = destination.resource.Get();
 		destinationLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 		destinationLocation.SubresourceIndex = subResourceIndex;
 
 		D3D12_TEXTURE_COPY_LOCATION sourceLocation = {};
-		sourceLocation.pResource = source.resource;
+		sourceLocation.pResource = source.resource.Get();
 		sourceLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 		sourceLocation.PlacedFootprint = subResourceLayouts[subResourceIndex];
 		sourceLocation.PlacedFootprint.Offset += sourceOffset;
@@ -190,13 +190,13 @@ void GraphicsCommandContextD3D12::SetPipeline(const PipelineInfo& pipelineBindin
 	{
 		if (pipelineBinding.pipeline->pipelineType == PipelineType::compute)
 		{
-			m_commandList->SetPipelineState(pipelineBinding.pipeline->pipeline);
-			m_commandList->SetComputeRootSignature(pipelineBinding.pipeline->rootSignature);
+			m_commandList->SetPipelineState(pipelineBinding.pipeline->pipeline.Get());
+			m_commandList->SetComputeRootSignature(pipelineBinding.pipeline->rootSignature.Get());
 		}
 		else
 		{
-			m_commandList->SetPipelineState(pipelineBinding.pipeline->pipeline);
-			m_commandList->SetGraphicsRootSignature(pipelineBinding.pipeline->rootSignature);
+			m_commandList->SetPipelineState(pipelineBinding.pipeline->pipeline.Get());
+			m_commandList->SetGraphicsRootSignature(pipelineBinding.pipeline->rootSignature.Get());
 		}
 	}
 
@@ -387,8 +387,8 @@ void ComputeCommandContextD3D12::SetPipeline(const PipelineInfo& pipelineBinding
 {
 	assert(pipelineBinding.pipeline && pipelineBinding.pipeline->pipelineType == PipelineType::compute);
 
-	m_commandList->SetPipelineState(pipelineBinding.pipeline->pipeline);
-	m_commandList->SetComputeRootSignature(pipelineBinding.pipeline->rootSignature);
+	m_commandList->SetPipelineState(pipelineBinding.pipeline->pipeline.Get());
+	m_commandList->SetComputeRootSignature(pipelineBinding.pipeline->rootSignature.Get());
 
 	m_currentPipeline = pipelineBinding.pipeline;
 }

@@ -29,12 +29,12 @@ void DestroyWindowDependentResources()
 		if (gRHI.backBuffers[bufferIndex])
 		{
 			gRHI.RTVStagingDescriptorHeap->FreeDescriptor(gRHI.backBuffers[bufferIndex]->RTVDescriptor);
-			SafeRelease(gRHI.backBuffers[bufferIndex]->resource);
+			gRHI.backBuffers[bufferIndex]->resource.Reset();
 			gRHI.backBuffers[bufferIndex] = nullptr;
 		}
 	}
 
-	SafeRelease(gRHI.swapChain);
+	gRHI.swapChain.Reset();
 }
 //=============================================================================
 void CopySRVHandleToReservedTable(Descriptor srvHandle, uint32_t index)
@@ -191,7 +191,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	freeReservedDescriptorIndices.resize(NUM_RESERVED_SRV_DESCRIPTORS - 1);
 	std::iota(freeReservedDescriptorIndices.begin(), freeReservedDescriptorIndices.end(), 1);
 
-	if (!CreateWindowDependentResources(wndData.hwnd, { wndData.width, wndData.height })) return false;
+	if (!createSwapChain(wndData)) return false;
 
 	return true;
 }
@@ -281,15 +281,14 @@ void RHIBackend::release()
 		uploadContexts[frameIndex] = nullptr;
 	}
 
-	SafeRelease(allocator);
-	SafeRelease(device);
+	allocator.Reset();
+	device.Reset();
 
 #if defined(_DEBUG)
-	IDXGIDebug1* pDebug = nullptr;
+	ComPtr<IDXGIDebug1> pDebug = nullptr;
 	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&pDebug))))
 	{
 		pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_SUMMARY | DXGI_DEBUG_RLO_DETAIL | DXGI_DEBUG_RLO_IGNORE_INTERNAL));
-		SafeRelease(pDebug);
 	}
 #endif
 }
@@ -357,7 +356,7 @@ bool RHIBackend::createAdapter()
 		return false;
 	}
 
-	return false;
+	return true;
 }
 //=============================================================================
 bool RHIBackend::createDevice()
@@ -386,7 +385,7 @@ bool RHIBackend::createDevice()
 		return false;
 	}
 
-	return false;
+	return true;
 }
 //=============================================================================
 void RHIBackend::configInfoQueue()
@@ -500,14 +499,11 @@ bool RHIBackend::createSwapChain(const WindowData& wndData)
 
 		backBuffers[bufferIndex] = new TextureResource();
 		backBuffers[bufferIndex]->desc          = backBufferResource->GetDesc();
-		backBuffers[bufferIndex]->resource      = backBufferResource.Get(); здесь ошибка
+		backBuffers[bufferIndex]->resource      = backBufferResource;
 		backBuffers[bufferIndex]->state         = D3D12_RESOURCE_STATE_PRESENT;
 		backBuffers[bufferIndex]->RTVDescriptor = backBufferRTVHandle;
 	}
 
-https://www.3dgep.com/learning-directx-12-1/
-https://milty.nl/grad_guide/basic_implementation/d3d12/swap_chain.html
-https://alain.xyz/blog/raw-directx12
 	frameId = 0;
 
 	return true;
@@ -572,10 +568,10 @@ std::unique_ptr<BufferResource> CreateBuffer(const BufferCreationDesc& desc)
 		srvDesc.Buffer.Flags = desc.isRawAccess ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
 
 		newBuffer->SRVDescriptor = gRHI.SRVStagingDescriptorHeap->GetNewDescriptor();
-		gRHI.device->CreateShaderResourceView(newBuffer->resource, &srvDesc, newBuffer->SRVDescriptor.CPUHandle);
+		gRHI.device->CreateShaderResourceView(newBuffer->resource.Get(), &srvDesc, newBuffer->SRVDescriptor.CPUHandle);
 
-		newBuffer->descriptorHeapIndex = gRHI.FreeReservedDescriptorIndices.back();
-		gRHI.FreeReservedDescriptorIndices.pop_back();
+		newBuffer->descriptorHeapIndex = gRHI.freeReservedDescriptorIndices.back();
+		gRHI.freeReservedDescriptorIndices.pop_back();
 
 		CopySRVHandleToReservedTable(newBuffer->SRVDescriptor, newBuffer->descriptorHeapIndex);
 	}
@@ -592,7 +588,7 @@ std::unique_ptr<BufferResource> CreateBuffer(const BufferCreationDesc& desc)
 		uavDesc.Buffer.Flags = desc.isRawAccess ? D3D12_BUFFER_UAV_FLAG_RAW : D3D12_BUFFER_UAV_FLAG_NONE;
 
 		newBuffer->UAVDescriptor = gRHI.SRVStagingDescriptorHeap->GetNewDescriptor();
-		gRHI.device->CreateUnorderedAccessView(newBuffer->resource, nullptr, &uavDesc, newBuffer->UAVDescriptor.CPUHandle);
+		gRHI.device->CreateUnorderedAccessView(newBuffer->resource.Get(), nullptr, &uavDesc, newBuffer->UAVDescriptor.CPUHandle);
 	}
 
 	if (isHostVisible)
@@ -692,7 +688,7 @@ std::unique_ptr<TextureResource> CreateTexture(const TextureCreationDesc& desc)
 			srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 
-			gRHI.device->CreateShaderResourceView(newTexture->resource, &srvDesc, newTexture->SRVDescriptor.CPUHandle);
+			gRHI.device->CreateShaderResourceView(newTexture->resource.Get(), &srvDesc, newTexture->SRVDescriptor.CPUHandle);
 		}
 		else
 		{
@@ -710,11 +706,11 @@ std::unique_ptr<TextureResource> CreateTexture(const TextureCreationDesc& desc)
 				srvDescPointer = &shaderResourceViewDesc;
 			}
 
-			gRHI.device->CreateShaderResourceView(newTexture->resource, srvDescPointer, newTexture->SRVDescriptor.CPUHandle);
+			gRHI.device->CreateShaderResourceView(newTexture->resource.Get(), srvDescPointer, newTexture->SRVDescriptor.CPUHandle);
 		}
 
-		newTexture->descriptorHeapIndex = gRHI.FreeReservedDescriptorIndices.back();
-		gRHI.FreeReservedDescriptorIndices.pop_back();
+		newTexture->descriptorHeapIndex = gRHI.freeReservedDescriptorIndices.back();
+		gRHI.freeReservedDescriptorIndices.pop_back();
 
 		CopySRVHandleToReservedTable(newTexture->SRVDescriptor, newTexture->descriptorHeapIndex);
 	}
@@ -722,7 +718,7 @@ std::unique_ptr<TextureResource> CreateTexture(const TextureCreationDesc& desc)
 	if (hasRTV)
 	{
 		newTexture->RTVDescriptor = gRHI.RTVStagingDescriptorHeap->GetNewDescriptor();
-		gRHI.device->CreateRenderTargetView(newTexture->resource, nullptr, newTexture->RTVDescriptor.CPUHandle);
+		gRHI.device->CreateRenderTargetView(newTexture->resource.Get(), nullptr, newTexture->RTVDescriptor.CPUHandle);
 	}
 
 	if (hasDSV)
@@ -734,13 +730,13 @@ std::unique_ptr<TextureResource> CreateTexture(const TextureCreationDesc& desc)
 		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 
 		newTexture->DSVDescriptor = gRHI.DSVStagingDescriptorHeap->GetNewDescriptor();
-		gRHI.device->CreateDepthStencilView(newTexture->resource, &dsvDesc, newTexture->DSVDescriptor.CPUHandle);
+		gRHI.device->CreateDepthStencilView(newTexture->resource.Get(), &dsvDesc, newTexture->DSVDescriptor.CPUHandle);
 	}
 
 	if (hasUAV)
 	{
 		newTexture->UAVDescriptor = gRHI.SRVStagingDescriptorHeap->GetNewDescriptor();
-		gRHI.device->CreateUnorderedAccessView(newTexture->resource, nullptr, nullptr, newTexture->UAVDescriptor.CPUHandle);
+		gRHI.device->CreateUnorderedAccessView(newTexture->resource.Get(), nullptr, nullptr, newTexture->UAVDescriptor.CPUHandle);
 	}
 
 	newTexture->isReady = (hasRTV || hasDSV);
@@ -943,12 +939,12 @@ std::unique_ptr<Shader> CreateShader(const ShaderCreationDesc& desc)
 		fclose(fp);
 	}
 
-	SafeRelease(pdbBlob);
-	SafeRelease(errors);
-	SafeRelease(compilationResults);
-	SafeRelease(dxcIncludeHandler);
-	SafeRelease(dxcCompiler);
-	SafeRelease(dxcUtils);
+	pdbBlob->Release();
+	errors->Release();
+	compilationResults->Release();
+	dxcIncludeHandler->Release();
+	dxcCompiler->Release();
+	dxcUtils->Release();
 
 	std::unique_ptr<Shader> shader = std::make_unique<Shader>();
 	shader->shaderBlob = shaderBlob;
@@ -1154,7 +1150,7 @@ void DestroyTexture(std::unique_ptr<TextureResource> texture)
 //=============================================================================
 void DestroyShader(std::unique_ptr<Shader> shader)
 {
-	SafeRelease(shader->shaderBlob);
+	shader->shaderBlob.Reset();
 }
 //=============================================================================
 void DestroyPipelineStateObject(std::unique_ptr<PipelineStateObject> pso)
@@ -1269,7 +1265,7 @@ void ProcessDestructions(uint32_t frameIndex)
 		if (bufferToDestroy->SRVDescriptor.IsValid())
 		{
 			gRHI.SRVStagingDescriptorHeap->FreeDescriptor(bufferToDestroy->SRVDescriptor);
-			gRHI.FreeReservedDescriptorIndices.push_back(bufferToDestroy->descriptorHeapIndex);
+			gRHI.freeReservedDescriptorIndices.push_back(bufferToDestroy->descriptorHeapIndex);
 		}
 
 		if (bufferToDestroy->UAVDescriptor.IsValid())
@@ -1282,8 +1278,8 @@ void ProcessDestructions(uint32_t frameIndex)
 			bufferToDestroy->resource->Unmap(0, nullptr);
 		}
 
-		SafeRelease(bufferToDestroy->resource);
-		SafeRelease(bufferToDestroy->allocation);
+		bufferToDestroy->resource.Reset();
+		bufferToDestroy->allocation.Reset();
 	}
 
 	for (auto& textureToDestroy : destructionQueueForFrame.texturesToDestroy)
@@ -1301,7 +1297,7 @@ void ProcessDestructions(uint32_t frameIndex)
 		if (textureToDestroy->SRVDescriptor.IsValid())
 		{
 			gRHI.SRVStagingDescriptorHeap->FreeDescriptor(textureToDestroy->SRVDescriptor);
-			gRHI.FreeReservedDescriptorIndices.push_back(textureToDestroy->descriptorHeapIndex);
+			gRHI.freeReservedDescriptorIndices.push_back(textureToDestroy->descriptorHeapIndex);
 		}
 
 		if (textureToDestroy->UAVDescriptor.IsValid())
@@ -1309,14 +1305,14 @@ void ProcessDestructions(uint32_t frameIndex)
 			gRHI.SRVStagingDescriptorHeap->FreeDescriptor(textureToDestroy->UAVDescriptor);
 		}
 
-		SafeRelease(textureToDestroy->resource);
-		SafeRelease(textureToDestroy->allocation);
+		textureToDestroy->resource.Reset();
+		textureToDestroy->allocation.Reset();
 	}
 
 	for (auto& pipelineToDestroy : destructionQueueForFrame.pipelinesToDestroy)
 	{
-		SafeRelease(pipelineToDestroy->rootSignature);
-		SafeRelease(pipelineToDestroy->pipeline);
+		pipelineToDestroy->rootSignature.Reset();
+		pipelineToDestroy->pipeline.Reset();
 	}
 
 	destructionQueueForFrame.buffersToDestroy.clear();

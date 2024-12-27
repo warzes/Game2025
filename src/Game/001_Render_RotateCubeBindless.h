@@ -7,7 +7,6 @@ void ExampleRender001()
 	if (engine.Create(engineAppCreateInfo))
 	{
 		auto& rhi = engine.GetRenderSystem();
-		auto graphicsContext = rhi.GetGraphicsContext();
 
 		struct MeshVertex
 		{
@@ -185,13 +184,13 @@ void ExampleRender001()
 
 			TextureResource& backBuffer = gRHI.GetCurrentBackBuffer();
 
-			graphicsContext->Reset();
-			graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			graphicsContext->AddBarrier(*mDepthBuffer, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-			graphicsContext->FlushBarriers();
+			gRHI.graphicsContext->Reset();
+			gRHI.graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			gRHI.graphicsContext->AddBarrier(*mDepthBuffer, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+			gRHI.graphicsContext->FlushBarriers();
 
-			graphicsContext->ClearRenderTarget(backBuffer, glm::vec4(0.3f, 0.3f, 0.8f, 1.0f));
-			graphicsContext->ClearDepthStencilTarget(*mDepthBuffer, 1.0f, 0);
+			gRHI.graphicsContext->ClearRenderTarget(backBuffer, glm::vec4(0.3f, 0.3f, 0.8f, 1.0f));
+			gRHI.graphicsContext->ClearDepthStencilTarget(*mDepthBuffer, 1.0f, 0);
 
 			static float rotation = 0.0f;
 			rotation += 0.01f;
@@ -212,18 +211,18 @@ void ExampleRender001()
 				pipeline.renderTargets.push_back(&backBuffer);
 				pipeline.depthStencilTarget = mDepthBuffer.get();
 
-				graphicsContext->SetPipeline(pipeline);
-				graphicsContext->SetPipelineResources(PER_OBJECT_SPACE, mMeshPerObjectResourceSpace);
-				graphicsContext->SetPipelineResources(PER_PASS_SPACE, mMeshPerPassResourceSpace);
-				graphicsContext->SetDefaultViewPortAndScissor(rhi.GetFrameBufferSize());
-				graphicsContext->SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				graphicsContext->Draw(36);
+				gRHI.graphicsContext->SetPipeline(pipeline);
+				gRHI.graphicsContext->SetPipelineResources(PER_OBJECT_SPACE, mMeshPerObjectResourceSpace);
+				gRHI.graphicsContext->SetPipelineResources(PER_PASS_SPACE, mMeshPerPassResourceSpace);
+				gRHI.graphicsContext->SetDefaultViewPortAndScissor(rhi.GetFrameBufferSize());
+				gRHI.graphicsContext->SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				gRHI.graphicsContext->Draw(36);
 			}
 
-			graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
-			graphicsContext->FlushBarriers();
+			gRHI.graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
+			gRHI.graphicsContext->FlushBarriers();
 
-			SubmitContextWork(*graphicsContext);
+			SubmitContextWork(*gRHI.graphicsContext);
 
 			engine.EndFrame();
 		}
