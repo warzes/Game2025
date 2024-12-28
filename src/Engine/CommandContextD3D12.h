@@ -23,14 +23,14 @@ public:
 protected:
 	void bindDescriptorHeaps(uint32_t frameIndex);
 
-	D3D12_COMMAND_LIST_TYPE                                                        m_contextType{ D3D12_COMMAND_LIST_TYPE_DIRECT };
-	ComPtr<ID3D12GraphicsCommandList10>                                            m_commandList{ nullptr };
-	std::array<ComPtr<ID3D12DescriptorHeap>, D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES> m_currentDescriptorHeaps;
-	std::array<ComPtr<ID3D12CommandAllocator>, NUM_FRAMES_IN_FLIGHT>               m_commandAllocators;
-	std::array<D3D12_RESOURCE_BARRIER, MAX_QUEUED_BARRIERS>                        m_resourceBarriers{};
-	uint32_t                                                                       m_numQueuedBarriers{ 0 };
-	RenderPassDescriptorHeap*                                                      m_currentSRVHeap{ nullptr };
-	D3D12_CPU_DESCRIPTOR_HANDLE                                                    m_currentSRVHeapHandle{ 0 };
+	D3D12_COMMAND_LIST_TYPE             m_contextType{ D3D12_COMMAND_LIST_TYPE_DIRECT };
+	ComPtr<ID3D12GraphicsCommandList10> m_commandList{ nullptr };
+	ComPtr<ID3D12DescriptorHeap>        m_currentDescriptorHeaps[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES]{};
+	ComPtr<ID3D12CommandAllocator>      m_commandAllocators[NUM_FRAMES_IN_FLIGHT]{};
+	D3D12_RESOURCE_BARRIER              m_resourceBarriers[MAX_QUEUED_BARRIERS]{};
+	uint32_t                            m_numQueuedBarriers{ 0 };
+	RenderPassDescriptorHeap*           m_currentSRVHeap{ nullptr };
+	D3D12_CPU_DESCRIPTOR_HANDLE         m_currentSRVHeapHandle{ 0 };
 };
 
 class GraphicsCommandContextD3D12 final : public CommandContextD3D12

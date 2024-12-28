@@ -24,14 +24,12 @@ DescriptorHeap::DescriptorHeap(ComPtr<ID3D12Device> device, D3D12_DESCRIPTOR_HEA
 	m_heapStart.CPUHandle = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
 	if (m_isShaderVisible)
-	{
 		m_heapStart.GPUHandle = m_descriptorHeap->GetGPUDescriptorHandleForHeapStart();
-	}
 
 	m_descriptorSize = device->GetDescriptorHandleIncrementSize(m_heapType);
 }
 //=============================================================================
-StagingDescriptorHeap::StagingDescriptorHeap(ComPtr<ID3D12Device> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors) 
+StagingDescriptorHeap::StagingDescriptorHeap(ComPtr<ID3D12Device> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors)
 	: DescriptorHeap(device, heapType, numDescriptors, false)
 {
 	m_freeDescriptors.reserve(numDescriptors);
@@ -66,9 +64,10 @@ Descriptor StagingDescriptorHeap::GetNewDescriptor()
 		Fatal("Ran out of dynamic descriptor heap handles, need to increase heap size.");
 	}
 
-	Descriptor newDescriptor;
 	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_heapStart.CPUHandle;
 	cpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
+
+	Descriptor newDescriptor;
 	newDescriptor.CPUHandle = cpuHandle;
 	newDescriptor.heapIndex = newHandleID;
 

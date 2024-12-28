@@ -41,6 +41,9 @@
     <ClCompile Include="DescriptorHeapD3D12.cpp">
       <Filter>RHI\Direct3D12</Filter>
     </ClCompile>
+    <ClCompile Include="RHIResourcesD3D12.cpp">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -107,6 +110,9 @@
     <ClInclude Include="DescriptorHeapD3D12.h">
       <Filter>RHI\Direct3D12</Filter>
     </ClInclude>
+    <ClInclude Include="RHIResourcesD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Base">
@@ -135,9 +141,6 @@
     </Filter>
     <Filter Include="RHI\Direct3D12">
       <UniqueIdentifier>{b585dfd2-fcb5-4be9-9bcf-d128c5b4859b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="RHI\Direct3D12\Resouces">
-      <UniqueIdentifier>{1fd1c4a9-d80d-49b6-8019-2c7f360c8442}</UniqueIdentifier>
     </Filter>
     <Filter Include="RHI\Direct3D12\old">
       <UniqueIdentifier>{92dc392e-35cd-401d-82fd-47a14b99f3db}</UniqueIdentifier>

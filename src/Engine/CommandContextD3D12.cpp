@@ -28,14 +28,14 @@ CommandContextD3D12::CommandContextD3D12(D3D12_COMMAND_LIST_TYPE commandType)
 //=============================================================================
 void CommandContextD3D12::Reset()
 {
-	uint32_t frameId = gRHI.GetFrameId();
+	const uint32_t frameId = gRHI.GetCurrentBackBufferIndex();
 
 	m_commandAllocators[frameId]->Reset();
 	m_commandList->Reset(m_commandAllocators[frameId].Get(), nullptr);
 
 	if (m_contextType != D3D12_COMMAND_LIST_TYPE_COPY)
 	{
-		bindDescriptorHeaps(gRHI.GetFrameId());
+		bindDescriptorHeaps(frameId);
 	}
 }
 //=============================================================================
@@ -62,12 +62,12 @@ void CommandContextD3D12::AddBarrier(Resource& resource, D3D12_RESOURCE_STATES n
 		D3D12_RESOURCE_BARRIER& barrierDesc = m_resourceBarriers[m_numQueuedBarriers];
 		m_numQueuedBarriers++;
 
-		barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-		barrierDesc.Transition.pResource = resource.resource.Get();
+		barrierDesc.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		barrierDesc.Transition.pResource   = resource.resource.Get();
 		barrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 		barrierDesc.Transition.StateBefore = oldState;
-		barrierDesc.Transition.StateAfter = newState;
-		barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		barrierDesc.Transition.StateAfter  = newState;
+		barrierDesc.Flags                  = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 
 		resource.state = newState;
 	}
@@ -76,8 +76,8 @@ void CommandContextD3D12::AddBarrier(Resource& resource, D3D12_RESOURCE_STATES n
 		D3D12_RESOURCE_BARRIER& barrierDesc = m_resourceBarriers[m_numQueuedBarriers];
 		m_numQueuedBarriers++;
 
-		barrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-		barrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+		barrierDesc.Type          = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+		barrierDesc.Flags         = D3D12_RESOURCE_BARRIER_FLAG_NONE;
 		barrierDesc.UAV.pResource = resource.resource.Get();
 	}
 }
@@ -86,7 +86,7 @@ void CommandContextD3D12::FlushBarriers()
 {
 	if (m_numQueuedBarriers > 0)
 	{
-		m_commandList->ResourceBarrier(m_numQueuedBarriers, m_resourceBarriers.data());
+		m_commandList->ResourceBarrier(m_numQueuedBarriers, m_resourceBarriers);
 		m_numQueuedBarriers = 0;
 	}
 }

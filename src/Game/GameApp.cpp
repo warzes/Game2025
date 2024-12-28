@@ -206,9 +206,9 @@ void GameApp()
 				meshConstants.textureIndex = mWoodTexture->descriptorHeapIndex;
 				meshConstants.worldMatrix = glm::rotate(glm::mat4(1.0f), rotation, glm::vec3(0.0f, 1.0f, 0.0f));
 
-				mMeshConstantBuffers[gRHI.GetFrameId()]->SetMappedData(&meshConstants, sizeof(MeshConstants));
+				mMeshConstantBuffers[gRHI.GetCurrentBackBufferIndex()]->SetMappedData(&meshConstants, sizeof(MeshConstants));
 
-				mMeshPerObjectResourceSpace.SetCBV(mMeshConstantBuffers[gRHI.GetFrameId()].get());
+				mMeshPerObjectResourceSpace.SetCBV(mMeshConstantBuffers[gRHI.GetCurrentBackBufferIndex()].get());
 
 				PipelineInfo pipeline;
 				pipeline.pipeline = mMeshPSO.get();

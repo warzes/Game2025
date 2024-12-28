@@ -93,7 +93,7 @@ void ExampleRender000()
 
 			gRHI.graphicsContext->Reset();
 			gRHI.graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			gRHI.graphicsContext->FlushBarriers();
+			gRHI.graphicsContext->FlushBarriers(); // если нужно несколько transition ресурсов, то их нужно вызвать до Flush
 
 			gRHI.graphicsContext->ClearRenderTarget(backBuffer, glm::vec4(0.3f, 0.3f, 0.8f, 1.0f));
 

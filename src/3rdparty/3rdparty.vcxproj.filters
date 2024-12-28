@@ -81,7 +81,6 @@
     <ClInclude Include="D3D12MemAlloc.h">
       <Filter>D3D12Allocator</Filter>
     </ClInclude>
-    <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DirectXTex\BC.h">
       <Filter>DirectXTex</Filter>
     </ClInclude>

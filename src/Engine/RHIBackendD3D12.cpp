@@ -22,26 +22,11 @@ void D3D12MessageFuncion(D3D12_MESSAGE_CATEGORY Category, D3D12_MESSAGE_SEVERITY
 }
 #endif // RHI_VALIDATION_ENABLED
 //=============================================================================
-void DestroyWindowDependentResources()
-{
-	for (uint32_t bufferIndex = 0; bufferIndex < NUM_BACK_BUFFERS; bufferIndex++)
-	{
-		if (gRHI.backBuffers[bufferIndex])
-		{
-			gRHI.RTVStagingDescriptorHeap->FreeDescriptor(gRHI.backBuffers[bufferIndex]->RTVDescriptor);
-			gRHI.backBuffers[bufferIndex]->resource.Reset();
-			gRHI.backBuffers[bufferIndex] = nullptr;
-		}
-	}
-
-	gRHI.swapChain.Reset();
-}
-//=============================================================================
 void CopySRVHandleToReservedTable(Descriptor srvHandle, uint32_t index)
 {
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
-		Descriptor targetDescriptor = gRHI.SRVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(index);
+		Descriptor targetDescriptor = gRHI.CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(index);
 
 		CopyDescriptorsSimple(1, targetDescriptor.CPUHandle, srvHandle.CPUHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	}
@@ -58,34 +43,13 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	frameBufferHeight = wndData.height;
 
 	enableDebugLayer();
-	if (!createAdapter()) return false;
-	if (!createDevice()) return false;
+	if (!createAdapter())          return false;
+	if (!createDevice())           return false;
 	configInfoQueue();
-	if (!createAllocator()) return false;
-
-	graphicsQueue = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_DIRECT);
-	computeQueue  = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COMPUTE);
-	copyQueue     = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COPY);
-	if (IsRequestExit())
-	{
-		Fatal("Create CommandQueueD3D12 failed.");
-		return false;
-	}
-
-	RTVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_RTV_STAGING_DESCRIPTORS);
-	DSVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, NUM_DSV_STAGING_DESCRIPTORS);
-	SRVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_SRV_STAGING_DESCRIPTORS);
-	samplerRenderPassDescriptorHeap = new RenderPassDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 0, NUM_SAMPLER_DESCRIPTORS);
-	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
-	{
-		SRVRenderPassDescriptorHeaps[frameIndex] = new RenderPassDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_RESERVED_SRV_DESCRIPTORS, NUM_SRV_RENDER_PASS_USER_DESCRIPTORS);
-		ImguiDescriptors[frameIndex] = SRVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(IMGUI_RESERVED_DESCRIPTOR_INDEX);
-	}
-	if (IsRequestExit())
-	{
-		Fatal("Create DescriptorHeap failed.");
-		return false;
-	}
+	if (!createAllocator())        return false;
+	if (!createCommandQueue())     return false;
+	if (!createDescriptorHeap())   return false;
+	if (!createSwapChain(wndData)) return false;
 
 	// Create Sampler
 	{
@@ -191,7 +155,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	freeReservedDescriptorIndices.resize(NUM_RESERVED_SRV_DESCRIPTORS - 1);
 	std::iota(freeReservedDescriptorIndices.begin(), freeReservedDescriptorIndices.end(), 1);
 
-	if (!createSwapChain(wndData)) return false;
+
 
 	return true;
 }
@@ -199,48 +163,75 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 void RHIBackend::DestroyAPI()
 {
 	WaitForIdle();
-	DestroyWindowDependentResources();
+	destroyMainRenderTarget();
+	swapChain.Reset();
 	release();
 }
 //=============================================================================
 void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 {
-	if (gRHI.frameBufferWidth == width && gRHI.frameBufferHeight == height) return;
+	if (frameBufferWidth == width && frameBufferHeight == height) return;
 	
-	gRHI.frameBufferWidth = width;
-	gRHI.frameBufferHeight = height;
+	frameBufferWidth = width;
+	frameBufferHeight = height;
+
+	WaitForIdle();
+	destroyMainRenderTarget();
+
+	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
+	HRESULT result = swapChain->GetDesc(&swapChainDesc);
+	if (FAILED(result))
+	{
+		Fatal("IDXGISwapChain4::GetDesc() failed:" + DXErrorToStr(result));
+		return;
+	}
+
+	result = swapChain->ResizeBuffers(NUM_BACK_BUFFERS, width, height, swapChainDesc.BufferDesc.Format, swapChainDesc.Flags);
+	if (FAILED(result))
+	{
+		Fatal("IDXGISwapChain4::ResizeBuffers() failed:" + DXErrorToStr(result));
+		return;
+	}
+
+	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
+
+	if (!createMainRenderTarget())
+	{
+		Fatal("createMainRenderTarget failed");
+		return;
+	}
 }
 //=============================================================================
 void RHIBackend::BeginFrame()
 {
-	gRHI.frameId = (gRHI.frameId + 1) % NUM_FRAMES_IN_FLIGHT;
+	currentBackBufferIndex = (currentBackBufferIndex + 1) % NUM_FRAMES_IN_FLIGHT;
 
 	//wait on fences from 2 frames ago
-	gRHI.graphicsQueue->WaitForFenceCPUBlocking(gRHI.endOfFrameFences[gRHI.frameId].graphicsQueueFence);
-	gRHI.computeQueue->WaitForFenceCPUBlocking(gRHI.endOfFrameFences[gRHI.frameId].computeQueueFence);
-	gRHI.copyQueue->WaitForFenceCPUBlocking(gRHI.endOfFrameFences[gRHI.frameId].copyQueueFence);
+	graphicsQueue->WaitForFenceCPUBlocking(endOfFrameFences[currentBackBufferIndex].graphicsQueueFence);
+	computeQueue->WaitForFenceCPUBlocking(endOfFrameFences[currentBackBufferIndex].computeQueueFence);
+	copyQueue->WaitForFenceCPUBlocking(endOfFrameFences[currentBackBufferIndex].copyQueueFence);
 
-	ProcessDestructions(gRHI.frameId);
+	ProcessDestructions(currentBackBufferIndex);
 
-	gRHI.uploadContexts[gRHI.frameId]->ResolveProcessedUploads();
-	gRHI.uploadContexts[gRHI.frameId]->Reset();
+	uploadContexts[currentBackBufferIndex]->ResolveProcessedUploads();
+	uploadContexts[currentBackBufferIndex]->Reset();
 
-	gRHI.contextSubmissions[gRHI.frameId].clear();
+	contextSubmissions[currentBackBufferIndex].clear();
 }
 //=============================================================================
 void RHIBackend::EndFrame()
 {
-	gRHI.uploadContexts[gRHI.frameId]->ProcessUploads();
-	SubmitContextWork(*gRHI.uploadContexts[gRHI.frameId]);
+	uploadContexts[currentBackBufferIndex]->ProcessUploads();
+	SubmitContextWork(*uploadContexts[currentBackBufferIndex]);
 
-	gRHI.endOfFrameFences[gRHI.frameId].computeQueueFence = gRHI.computeQueue->SignalFence();
-	gRHI.endOfFrameFences[gRHI.frameId].copyQueueFence = gRHI.copyQueue->SignalFence();
+	endOfFrameFences[currentBackBufferIndex].computeQueueFence = computeQueue->SignalFence();
+	endOfFrameFences[currentBackBufferIndex].copyQueueFence = copyQueue->SignalFence();
 }
 //=============================================================================
 void RHIBackend::Present()
 {
-	gRHI.swapChain->Present(0, 0);
-	gRHI.endOfFrameFences[gRHI.frameId].graphicsQueueFence = gRHI.graphicsQueue->SignalFence();
+	swapChain->Present(0, 0);
+	endOfFrameFences[currentBackBufferIndex].graphicsQueueFence = graphicsQueue->SignalFence();
 }
 //=============================================================================
 TextureResource& RHIBackend::GetCurrentBackBuffer()
@@ -270,13 +261,13 @@ void RHIBackend::release()
 
 	delete RTVStagingDescriptorHeap; RTVStagingDescriptorHeap = nullptr;
 	delete DSVStagingDescriptorHeap; DSVStagingDescriptorHeap = nullptr;
-	delete SRVStagingDescriptorHeap; SRVStagingDescriptorHeap = nullptr;
+	delete CBVSRVUAVStagingDescriptorHeap; CBVSRVUAVStagingDescriptorHeap = nullptr;
 	delete samplerRenderPassDescriptorHeap; samplerRenderPassDescriptorHeap = nullptr;
 
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
-		delete SRVRenderPassDescriptorHeaps[frameIndex];
-		SRVRenderPassDescriptorHeaps[frameIndex] = nullptr;
+		delete CBVSRVUAVRenderPassDescriptorHeaps[frameIndex];
+		CBVSRVUAVRenderPassDescriptorHeaps[frameIndex] = nullptr;
 		delete uploadContexts[frameIndex];
 		uploadContexts[frameIndex] = nullptr;
 	}
@@ -431,6 +422,69 @@ bool RHIBackend::createAllocator()
 	return true;
 }
 //=============================================================================
+bool RHIBackend::createCommandQueue()
+{
+	graphicsQueue = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_DIRECT);
+	if (IsRequestExit())
+	{
+		Fatal("Create graphicsQueue failed.");
+		return false;
+	}
+	computeQueue = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COMPUTE);
+	if (IsRequestExit())
+	{
+		Fatal("Create computeQueue failed.");
+		return false;
+	}
+	copyQueue = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COPY);
+	if (IsRequestExit())
+	{
+		Fatal("Create copyQueue failed.");
+		return false;
+	}
+	return true;
+}
+//=============================================================================
+bool RHIBackend::createDescriptorHeap()
+{
+	RTVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_RTV_STAGING_DESCRIPTORS);
+	if (IsRequestExit())
+	{
+		Fatal("Create RTVStagingDescriptorHeap failed.");
+		return false;
+	}
+	DSVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, NUM_DSV_STAGING_DESCRIPTORS);
+	if (IsRequestExit())
+	{
+		Fatal("Create DSVStagingDescriptorHeap failed.");
+		return false;
+	}
+	CBVSRVUAVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_SRV_STAGING_DESCRIPTORS);
+	if (IsRequestExit())
+	{
+		Fatal("Create CBVSRVUAVStagingDescriptorHeap failed.");
+		return false;
+	}
+	samplerRenderPassDescriptorHeap = new RenderPassDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 0, NUM_SAMPLER_DESCRIPTORS);
+	if (IsRequestExit())
+	{
+		Fatal("Create samplerRenderPassDescriptorHeap failed.");
+		return false;
+	}
+	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
+	{
+		CBVSRVUAVRenderPassDescriptorHeaps[frameIndex] = new RenderPassDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_RESERVED_SRV_DESCRIPTORS, NUM_SRV_RENDER_PASS_USER_DESCRIPTORS);
+		ImguiDescriptors[frameIndex] = CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(IMGUI_RESERVED_DESCRIPTOR_INDEX);
+		if (IsRequestExit())
+		{
+			Fatal("Create SRVRenderPassDescriptorHeaps failed.");
+			return false;
+		}
+	}
+
+	return true;
+}
+//=============================================================================
 bool RHIBackend::createSwapChain(const WindowData& wndData)
 {
 	ComPtr<IDXGIFactory2> DXGIFactory;
@@ -445,7 +499,7 @@ bool RHIBackend::createSwapChain(const WindowData& wndData)
 	swapChainDesc.Width                 = wndData.width;
 	swapChainDesc.Height                = wndData.height;
 	swapChainDesc.Format                = DXGI_FORMAT_R8G8B8A8_UNORM;
-	swapChainDesc.Stereo                = false;
+	swapChainDesc.Stereo                = FALSE;
 	swapChainDesc.SampleDesc            = { 1, 0 };
 	swapChainDesc.BufferUsage           = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	swapChainDesc.BufferCount           = NUM_BACK_BUFFERS;
@@ -477,10 +531,17 @@ bool RHIBackend::createSwapChain(const WindowData& wndData)
 		return false;
 	}
 
+	currentBackBufferIndex = 0;
+
+	return createMainRenderTarget();
+}
+//=============================================================================
+bool RHIBackend::createMainRenderTarget()
+{
 	for (uint32_t bufferIndex = 0; bufferIndex < NUM_BACK_BUFFERS; bufferIndex++)
 	{
 		ComPtr<ID3D12Resource> backBufferResource;
-		result = swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&backBufferResource));
+		HRESULT result = swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&backBufferResource));
 		if (FAILED(result))
 		{
 			Fatal("IDXGISwapChain4::GetBuffer() failed: " + DXErrorToStr(result));
@@ -497,16 +558,29 @@ bool RHIBackend::createSwapChain(const WindowData& wndData)
 
 		device->CreateRenderTargetView(backBufferResource.Get(), &rtvDesc, backBufferRTVHandle.CPUHandle);
 
-		backBuffers[bufferIndex] = new TextureResource();
+		backBuffers[bufferIndex]                = new TextureResource();
 		backBuffers[bufferIndex]->desc          = backBufferResource->GetDesc();
 		backBuffers[bufferIndex]->resource      = backBufferResource;
 		backBuffers[bufferIndex]->state         = D3D12_RESOURCE_STATE_PRESENT;
 		backBuffers[bufferIndex]->RTVDescriptor = backBufferRTVHandle;
 	}
-
-	frameId = 0;
-
 	return true;
+}
+//=============================================================================
+void RHIBackend::destroyMainRenderTarget()
+{
+	for (uint32_t bufferIndex = 0; bufferIndex < NUM_BACK_BUFFERS; bufferIndex++)
+	{
+		if (backBuffers[bufferIndex])
+		{
+			if (RTVStagingDescriptorHeap) 
+				RTVStagingDescriptorHeap->FreeDescriptor(backBuffers[bufferIndex]->RTVDescriptor);
+
+			backBuffers[bufferIndex]->resource.Reset();
+			delete backBuffers[bufferIndex];
+			backBuffers[bufferIndex] = nullptr;
+		}
+	}
 }
 //=============================================================================
 std::unique_ptr<BufferResource> CreateBuffer(const BufferCreationDesc& desc)
@@ -552,7 +626,7 @@ std::unique_ptr<BufferResource> CreateBuffer(const BufferCreationDesc& desc)
 		constantBufferViewDesc.BufferLocation = newBuffer->resource->GetGPUVirtualAddress();
 		constantBufferViewDesc.SizeInBytes = static_cast<uint32_t>(newBuffer->desc.Width);
 
-		newBuffer->CBVDescriptor = gRHI.SRVStagingDescriptorHeap->GetNewDescriptor();
+		newBuffer->CBVDescriptor = gRHI.CBVSRVUAVStagingDescriptorHeap->GetNewDescriptor();
 		gRHI.device->CreateConstantBufferView(&constantBufferViewDesc, newBuffer->CBVDescriptor.CPUHandle);
 	}
 
@@ -567,7 +641,7 @@ std::unique_ptr<BufferResource> CreateBuffer(const BufferCreationDesc& desc)
 		srvDesc.Buffer.StructureByteStride = desc.isRawAccess ? 0 : newBuffer->stride;
 		srvDesc.Buffer.Flags = desc.isRawAccess ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
 
-		newBuffer->SRVDescriptor = gRHI.SRVStagingDescriptorHeap->GetNewDescriptor();
+		newBuffer->SRVDescriptor = gRHI.CBVSRVUAVStagingDescriptorHeap->GetNewDescriptor();
 		gRHI.device->CreateShaderResourceView(newBuffer->resource.Get(), &srvDesc, newBuffer->SRVDescriptor.CPUHandle);
 
 		newBuffer->descriptorHeapIndex = gRHI.freeReservedDescriptorIndices.back();
@@ -587,7 +661,7 @@ std::unique_ptr<BufferResource> CreateBuffer(const BufferCreationDesc& desc)
 		uavDesc.Buffer.StructureByteStride = desc.isRawAccess ? 0 : newBuffer->stride;
 		uavDesc.Buffer.Flags = desc.isRawAccess ? D3D12_BUFFER_UAV_FLAG_RAW : D3D12_BUFFER_UAV_FLAG_NONE;
 
-		newBuffer->UAVDescriptor = gRHI.SRVStagingDescriptorHeap->GetNewDescriptor();
+		newBuffer->UAVDescriptor = gRHI.CBVSRVUAVStagingDescriptorHeap->GetNewDescriptor();
 		gRHI.device->CreateUnorderedAccessView(newBuffer->resource.Get(), nullptr, &uavDesc, newBuffer->UAVDescriptor.CPUHandle);
 	}
 
@@ -675,7 +749,7 @@ std::unique_ptr<TextureResource> CreateTexture(const TextureCreationDesc& desc)
 
 	if (hasSRV)
 	{
-		newTexture->SRVDescriptor = gRHI.SRVStagingDescriptorHeap->GetNewDescriptor();
+		newTexture->SRVDescriptor = gRHI.CBVSRVUAVStagingDescriptorHeap->GetNewDescriptor();
 
 		if (hasDSV)
 		{
@@ -735,7 +809,7 @@ std::unique_ptr<TextureResource> CreateTexture(const TextureCreationDesc& desc)
 
 	if (hasUAV)
 	{
-		newTexture->UAVDescriptor = gRHI.SRVStagingDescriptorHeap->GetNewDescriptor();
+		newTexture->UAVDescriptor = gRHI.CBVSRVUAVStagingDescriptorHeap->GetNewDescriptor();
 		gRHI.device->CreateUnorderedAccessView(newTexture->resource.Get(), nullptr, nullptr, newTexture->UAVDescriptor.CPUHandle);
 	}
 
@@ -821,7 +895,7 @@ std::unique_ptr<TextureResource> CreateTextureFromFile(const std::string& textur
 		}
 	}
 
-	gRHI.uploadContexts[gRHI.frameId]->AddTextureUpload(std::move(textureUpload));
+	gRHI.uploadContexts[gRHI.currentBackBufferIndex]->AddTextureUpload(std::move(textureUpload));
 
 	return newTexture;
 }
@@ -1140,12 +1214,12 @@ std::unique_ptr<ComputeCommandContextD3D12> CreateComputeContext()
 //=============================================================================
 void DestroyBuffer(std::unique_ptr<BufferResource> buffer)
 {
-	gRHI.destructionQueues[gRHI.frameId].buffersToDestroy.push_back(std::move(buffer));
+	gRHI.destructionQueues[gRHI.currentBackBufferIndex].buffersToDestroy.push_back(std::move(buffer));
 }
 //=============================================================================
 void DestroyTexture(std::unique_ptr<TextureResource> texture)
 {
-	gRHI.destructionQueues[gRHI.frameId].texturesToDestroy.push_back(std::move(texture));
+	gRHI.destructionQueues[gRHI.currentBackBufferIndex].texturesToDestroy.push_back(std::move(texture));
 }
 //=============================================================================
 void DestroyShader(std::unique_ptr<Shader> shader)
@@ -1155,12 +1229,12 @@ void DestroyShader(std::unique_ptr<Shader> shader)
 //=============================================================================
 void DestroyPipelineStateObject(std::unique_ptr<PipelineStateObject> pso)
 {
-	gRHI.destructionQueues[gRHI.frameId].pipelinesToDestroy.push_back(std::move(pso));
+	gRHI.destructionQueues[gRHI.currentBackBufferIndex].pipelinesToDestroy.push_back(std::move(pso));
 }
 //=============================================================================
 void DestroyContext(std::unique_ptr<CommandContextD3D12> context)
 {
-	gRHI.destructionQueues[gRHI.frameId].contextsToDestroy.push_back(std::move(context));
+	gRHI.destructionQueues[gRHI.currentBackBufferIndex].contextsToDestroy.push_back(std::move(context));
 }
 //=============================================================================
 ContextSubmissionResult SubmitContextWork(CommandContextD3D12& context)
@@ -1184,10 +1258,10 @@ ContextSubmissionResult SubmitContextWork(CommandContextD3D12& context)
 	}
 
 	ContextSubmissionResult submissionResult;
-	submissionResult.frameId = gRHI.frameId;
-	submissionResult.submissionIndex = static_cast<uint32_t>(gRHI.contextSubmissions[gRHI.frameId].size());
+	submissionResult.frameId = gRHI.currentBackBufferIndex;
+	submissionResult.submissionIndex = static_cast<uint32_t>(gRHI.contextSubmissions[gRHI.currentBackBufferIndex].size());
 
-	gRHI.contextSubmissions[gRHI.frameId].push_back(std::make_pair(fenceResult, context.GetCommandType()));
+	gRHI.contextSubmissions[gRHI.currentBackBufferIndex].push_back(std::make_pair(fenceResult, context.GetCommandType()));
 
 	return submissionResult;
 }
@@ -1259,18 +1333,18 @@ void ProcessDestructions(uint32_t frameIndex)
 	{
 		if (bufferToDestroy->CBVDescriptor.IsValid())
 		{
-			gRHI.SRVStagingDescriptorHeap->FreeDescriptor(bufferToDestroy->CBVDescriptor);
+			gRHI.CBVSRVUAVStagingDescriptorHeap->FreeDescriptor(bufferToDestroy->CBVDescriptor);
 		}
 
 		if (bufferToDestroy->SRVDescriptor.IsValid())
 		{
-			gRHI.SRVStagingDescriptorHeap->FreeDescriptor(bufferToDestroy->SRVDescriptor);
+			gRHI.CBVSRVUAVStagingDescriptorHeap->FreeDescriptor(bufferToDestroy->SRVDescriptor);
 			gRHI.freeReservedDescriptorIndices.push_back(bufferToDestroy->descriptorHeapIndex);
 		}
 
 		if (bufferToDestroy->UAVDescriptor.IsValid())
 		{
-			gRHI.SRVStagingDescriptorHeap->FreeDescriptor(bufferToDestroy->UAVDescriptor);
+			gRHI.CBVSRVUAVStagingDescriptorHeap->FreeDescriptor(bufferToDestroy->UAVDescriptor);
 		}
 
 		if (bufferToDestroy->mappedResource != nullptr)
@@ -1296,13 +1370,13 @@ void ProcessDestructions(uint32_t frameIndex)
 
 		if (textureToDestroy->SRVDescriptor.IsValid())
 		{
-			gRHI.SRVStagingDescriptorHeap->FreeDescriptor(textureToDestroy->SRVDescriptor);
+			gRHI.CBVSRVUAVStagingDescriptorHeap->FreeDescriptor(textureToDestroy->SRVDescriptor);
 			gRHI.freeReservedDescriptorIndices.push_back(textureToDestroy->descriptorHeapIndex);
 		}
 
 		if (textureToDestroy->UAVDescriptor.IsValid())
 		{
-			gRHI.SRVStagingDescriptorHeap->FreeDescriptor(textureToDestroy->UAVDescriptor);
+			gRHI.CBVSRVUAVStagingDescriptorHeap->FreeDescriptor(textureToDestroy->UAVDescriptor);
 		}
 
 		textureToDestroy->resource.Reset();

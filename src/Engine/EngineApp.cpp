@@ -23,6 +23,8 @@ bool EngineApp::Create(const EngineAppCreateInfo& createInfo)
 		Fatal("Failed to call CoInitializeEx");
 		return false;
 	}
+
+	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 #endif // PLATFORM_WINDOWS
 
 #if defined(_DEBUG) && PLATFORM_WINDOWS
@@ -63,6 +65,30 @@ bool EngineApp::IsShouldClose() const
 //=============================================================================
 void EngineApp::BeginFrame()
 {
+	// TODO: time metric
+	{
+		static uint64_t frameCounter = 0;
+		static double elapsedSeconds = 0.0;
+		static std::chrono::high_resolution_clock clock;
+		static auto t0 = clock.now();
+
+		frameCounter++;
+		auto t1 = clock.now();
+		auto deltaTime = t1 - t0;
+		t0 = t1;
+		elapsedSeconds += deltaTime.count() * 1e-9;
+		if (elapsedSeconds > 1.0)
+		{
+			char buffer[500];
+			auto fps = frameCounter / elapsedSeconds;
+			sprintf_s(buffer, 500, "FPS: %f\n", fps);
+			Print(buffer);
+
+			frameCounter = 0;
+			elapsedSeconds = 0.0;
+		}
+	}
+	
 	m_window.PollEvent();
 	if (m_window.IsShouldClose())
 	{

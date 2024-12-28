@@ -114,7 +114,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="D3D12MemAlloc.h" />
-    <ClInclude Include="d3dx12.h" />
     <ClInclude Include="DirectXTex\BC.h" />
     <ClInclude Include="DirectXTex\BCDirectCompute.h" />
     <ClInclude Include="DirectXTex\DDS.h" />

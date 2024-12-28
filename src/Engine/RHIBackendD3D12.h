@@ -15,7 +15,7 @@ struct DestructionQueue final
 	std::vector<std::unique_ptr<BufferResource>>      buffersToDestroy;
 	std::vector<std::unique_ptr<TextureResource>>     texturesToDestroy;
 	std::vector<std::unique_ptr<PipelineStateObject>> pipelinesToDestroy;
-	std::vector<std::unique_ptr<CommandContextD3D12>>             contextsToDestroy;
+	std::vector<std::unique_ptr<CommandContextD3D12>> contextsToDestroy;
 };
 
 class RHIBackend final
@@ -31,14 +31,14 @@ public:
 	void EndFrame();
 	void Present();
 
-	uint32_t GetFrameId() const { return frameId; }
+	uint32_t GetCurrentBackBufferIndex() const { return currentBackBufferIndex; }
 	RenderPassDescriptorHeap& GetSamplerHeap() { return *samplerRenderPassDescriptorHeap; }
-	RenderPassDescriptorHeap& GetSRVHeap(uint32_t frameIndex) { return *SRVRenderPassDescriptorHeaps[frameIndex]; }
+	RenderPassDescriptorHeap& GetSRVHeap(uint32_t frameIndex) { return *CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]; }
 
 	TextureResource& GetCurrentBackBuffer();
 
 	Descriptor& GetImguiDescriptor(uint32_t index) { return ImguiDescriptors[index]; }
-	UploadCommandContextD3D12& GetUploadContextForCurrentFrame() { return *uploadContexts[frameId]; }
+	UploadCommandContextD3D12& GetUploadContextForCurrentFrame() { return *uploadContexts[currentBackBufferIndex]; }
 
 	RenderFeatures               supportFeatures{};
 	ComPtr<IDXGIAdapter4>        adapter{ nullptr };
@@ -51,27 +51,33 @@ public:
 
 	StagingDescriptorHeap*       RTVStagingDescriptorHeap{ nullptr };
 	StagingDescriptorHeap*       DSVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeap*       SRVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeap*       CBVSRVUAVStagingDescriptorHeap{ nullptr };
 	RenderPassDescriptorHeap*    samplerRenderPassDescriptorHeap{ nullptr };
-	RenderPassDescriptorHeap*    SRVRenderPassDescriptorHeaps[NUM_FRAMES_IN_FLIGHT]{};
+	RenderPassDescriptorHeap*    CBVSRVUAVRenderPassDescriptorHeaps[NUM_FRAMES_IN_FLIGHT]{};
 	Descriptor                   ImguiDescriptors[NUM_FRAMES_IN_FLIGHT]{};
+
+	ComPtr<IDXGISwapChain4>      swapChain;
+	TextureResource*             backBuffers[NUM_BACK_BUFFERS]{};
+	uint32_t                     frameBufferWidth{ 0 };
+	uint32_t                     frameBufferHeight{ 0 };
+	uint32_t                     currentBackBufferIndex{ 0 };
+
+
 
 	GraphicsCommandContextD3D12* graphicsContext{ nullptr };
 	UploadCommandContextD3D12*   uploadContexts[NUM_FRAMES_IN_FLIGHT]{};
 
 	std::vector<uint32_t>        freeReservedDescriptorIndices;
 
-	ComPtr<IDXGISwapChain4>      swapChain;
-	TextureResource*             backBuffers[NUM_BACK_BUFFERS]{};
 
 
 
 
 
-	uint32_t            frameBufferWidth{ 0 };
-	uint32_t            frameBufferHeight{ 0 };
 
-	uint32_t            frameId{ 0 };
+
+
+
 
 	std::array<EndOfFrameFences, NUM_FRAMES_IN_FLIGHT> endOfFrameFences;
 
@@ -85,7 +91,11 @@ private:
 	bool createDevice();
 	void configInfoQueue();
 	bool createAllocator();
+	bool createCommandQueue();
+	bool createDescriptorHeap();
 	bool createSwapChain(const WindowData& wndData);
+	bool createMainRenderTarget();
+	void destroyMainRenderTarget();
 	void release();
 };
 

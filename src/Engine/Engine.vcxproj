@@ -112,6 +112,7 @@
     <ClInclude Include="RenderSystem.h" />
     <ClInclude Include="RHIBackend.h" />
     <ClInclude Include="RHIBackendD3D12.h" />
+    <ClInclude Include="RHIResourcesD3D12.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="WindowCore.h" />
     <ClInclude Include="WindowData.h" />
@@ -130,6 +131,7 @@
     <ClCompile Include="RenderCoreD3D12.cpp" />
     <ClCompile Include="RenderSystem.cpp" />
     <ClCompile Include="RHIBackendD3D12.cpp" />
+    <ClCompile Include="RHIResourcesD3D12.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
