@@ -34,7 +34,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	frameBufferHeight = wndData.height;
 	vsync = createInfo.vsync;
 
-	enableDebugLayer();
+	enableDebugLayer(createInfo);
 	if (!createAdapter(createInfo)) return false;
 	if (!createDevice())            return false;
 	configInfoQueue();
@@ -42,23 +42,42 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 
 	// TEMP =====================================
 	g_CommandQueue = CreateCommandQueue(device, D3D12_COMMAND_LIST_TYPE_DIRECT);
-	swapChain = CreateSwapChain(wndData.hwnd, g_CommandQueue, wndData.width, wndData.height, NUM_BACK_BUFFERS, supportFeatures.allowTearing);
-	g_CurrentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
+	swapChain = CreateSwapChain(wndData.hwnd, g_CommandQueue, wndData.width, wndData.height, backBufferFormat, NUM_BACK_BUFFERS, supportFeatures.allowTearing);
+	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
 
-	g_RTVDescriptorHeap = CreateDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_BACK_BUFFERS);
-	g_RTVDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	// Create descriptor heaps for render target views and depth stencil views.
+	rtvDescriptorHeap = CreateDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_BACK_BUFFERS);
+	dsvDescriptorHeap = CreateDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
 
-	UpdateRenderTargetViews(device, swapChain, g_RTVDescriptorHeap);
+	rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
+	UpdateRenderTargetViews(device, rtvDescriptorSize, swapChain, rtvDescriptorHeap);
+
+	// Create a command allocator for each back buffer that will be rendered to.
 	for (int i = 0; i < NUM_BACK_BUFFERS; ++i)
 	{
 		g_CommandAllocators[i] = CreateCommandAllocator(device, D3D12_COMMAND_LIST_TYPE_DIRECT);
 	}
-	g_CommandList = CreateCommandList(device,
-		g_CommandAllocators[g_CurrentBackBufferIndex], D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-	g_Fence = CreateFence(device);
-	g_FenceEvent = CreateEventHandle();
+	// Create a command list for recording graphics commands.
+	g_CommandList = CreateCommandList(device, g_CommandAllocators[0], D3D12_COMMAND_LIST_TYPE_DIRECT);
+
+	// Create a fence for tracking GPU execution progress.
+	//g_Fence = CreateFence(device);
+	device->CreateFence(fenceValues[currentBackBufferIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+	fenceValues[currentBackBufferIndex]++;
+	for (int i = 0; i < NUM_BACK_BUFFERS; ++i)
+	{
+		fenceValues[i] = fenceValues[currentBackBufferIndex]; // TODO: wtf?
+	}
+
+	fenceEvent.Attach(CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE));
+	if (!fenceEvent.IsValid())
+	{
+		throw std::system_error(std::error_code(static_cast<int>(GetLastError()), std::system_category()), "CreateEventEx");
+	}
+
+	//g_FenceEvent = CreateEventHandle();
 
 	// TEMP =====================================
 
@@ -67,7 +86,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 //=============================================================================
 void RHIBackend::DestroyAPI()
 {
-	Flush(g_CommandQueue, g_Fence, g_FenceValue, g_FenceEvent);
+	WaitForGpu();
 
 	allocator.Reset();
 	device.Reset();
@@ -92,23 +111,24 @@ void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 	frameBufferWidth = width;
 	frameBufferHeight = height;
 
-	// Flush the GPU queue to make sure the swap chain's back buffers are not being referenced by an in-flight command list.
-	Flush(g_CommandQueue, g_Fence, g_FenceValue, g_FenceEvent);
+	// Wait until all previous GPU work is complete.
+	WaitForGpu();
 
+	// Release resources that are tied to the swap chain and update fence values.
 	for (int i = 0; i < NUM_BACK_BUFFERS; ++i)
 	{
 		// Any references to the back buffers must be released before the swap chain can be resized.
-		g_BackBuffers[i].Reset();
-		g_FrameFenceValues[i] = g_FrameFenceValues[g_CurrentBackBufferIndex];
+		backBuffers[i].Reset();
+		fenceValues[i] = fenceValues[currentBackBufferIndex];
 	}
+	depthStencil.Reset();
 
 	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-	swapChain->GetDesc(&swapChainDesc);
-	swapChain->ResizeBuffers(NUM_BACK_BUFFERS, frameBufferWidth, frameBufferHeight, swapChainDesc.BufferDesc.Format, swapChainDesc.Flags);
+	HRESULT result = swapChain->GetDesc(&swapChainDesc);
+	result = swapChain->ResizeBuffers(NUM_BACK_BUFFERS, frameBufferWidth, frameBufferHeight, swapChainDesc.BufferDesc.Format, swapChainDesc.Flags);
+	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
 
-	g_CurrentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
-
-	UpdateRenderTargetViews(device, swapChain, g_RTVDescriptorHeap);
+	UpdateRenderTargetViews(device, rtvDescriptorSize, swapChain, rtvDescriptorHeap);
 }
 //=============================================================================
 void RHIBackend::BeginFrame()
@@ -119,21 +139,82 @@ void RHIBackend::EndFrame()
 {
 }
 //=============================================================================
-void RHIBackend::enableDebugLayer()
+void RHIBackend::WaitForGpu()
+{
+	if (g_CommandQueue && fence && fenceEvent.IsValid())
+	{
+		// Schedule a Signal command in the GPU queue.
+		UINT64 fenceValue = fenceValues[currentBackBufferIndex];
+		if (SUCCEEDED(g_CommandQueue->Signal(fence.Get(), fenceValue)))
+		{
+			// Wait until the Signal has been processed.
+			if (SUCCEEDED(fence->SetEventOnCompletion(fenceValue, fenceEvent.Get())))
+			{
+				std::ignore = WaitForSingleObjectEx(fenceEvent.Get(), INFINITE, FALSE);
+
+				// Increment the fence value for the current frame.
+				fenceValues[currentBackBufferIndex]++;
+			}
+		}
+	}
+}
+//=============================================================================
+void RHIBackend::MoveToNextFrame()
+{
+	// Schedule a Signal command in the queue.
+	const UINT64 currentFenceValue = fenceValues[currentBackBufferIndex];
+	g_CommandQueue->Signal(fence.Get(), currentFenceValue);
+
+	// Update the back buffer index.
+	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
+
+	// If the next frame is not ready to be rendered yet, wait until it is ready.
+	//WaitForFenceValue(gRHI.g_Fence, gRHI.g_FrameFenceValues[gRHI.g_CurrentBackBufferIndex], gRHI.g_FenceEvent);
+	if (fence->GetCompletedValue() < fenceValues[currentBackBufferIndex])
+	{
+		fence->SetEventOnCompletion(fenceValues[currentBackBufferIndex], fenceEvent.Get());
+		std::ignore = WaitForSingleObjectEx(fenceEvent.Get(), INFINITE, FALSE);
+	}
+
+	// Set the fence value for the next frame.
+	fenceValues[currentBackBufferIndex] = currentFenceValue + 1;
+}
+//=============================================================================
+void RHIBackend::enableDebugLayer(const RenderSystemCreateInfo& createInfo)
 {
 #if RHI_VALIDATION_ENABLED
 	ComPtr<ID3D12Debug> debugController;
 	if (FAILED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) return;
 	debugController->EnableDebugLayer();
+	Print("Direct3D 12 Enable Debug Layer");
+
+	ComPtr<IDXGIInfoQueue> dxgiInfoQueue;
+	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiInfoQueue))))
+	{
+		dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
+		dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
+	}
 
 	ComPtr<ID3D12Debug1> debugController1;
 	if (FAILED(debugController.As(&debugController1))) return;
-	debugController1->SetEnableGPUBasedValidation(TRUE); // TODO: может сильно замедлять работу, поэтому возможно должна быть тонкая настройка
-	debugController1->SetEnableSynchronizedCommandQueueValidation(TRUE);
+	if (createInfo.debug.enableGPUBasedValidation)
+	{
+		debugController1->SetEnableGPUBasedValidation(TRUE);
+		Print("Direct3D 12 Enable Debug GPU Based Validation");
+	}
+	if (createInfo.debug.enableSynchronizedCommandQueueValidation)
+	{
+		debugController1->SetEnableSynchronizedCommandQueueValidation(TRUE);
+		Print("Direct3D 12 Enable Debug Synchronized Command Queue Validation");
+	}
 
 	ComPtr<ID3D12Debug5> debugController5;
 	if (FAILED(debugController1.As(&debugController5))) return;
-	debugController5->SetEnableAutoName(TRUE);
+	if (createInfo.debug.enableAutoName)
+	{
+		debugController5->SetEnableAutoName(TRUE);
+		Print("Direct3D 12 Enable Debug Auto Name");
+	}
 #endif // RHI_VALIDATION_ENABLED
 }
 //=============================================================================
@@ -229,25 +310,27 @@ bool RHIBackend::createDevice()
 void RHIBackend::configInfoQueue()
 {
 #if RHI_VALIDATION_ENABLED
-	ComPtr<ID3D12InfoQueue1> infoQueue{ nullptr };
-	if (SUCCEEDED(device.As(&infoQueue)))
+	ComPtr<ID3D12InfoQueue1> d3dInfoQueue;
+	if (SUCCEEDED(device.As(&d3dInfoQueue)))
 	{
-		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
-		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
-		//infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
+		d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
+		d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
+		//d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
 
-		std::vector<D3D12_MESSAGE_ID> filteredMessages = {
-			D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
-			D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
+		D3D12_MESSAGE_ID filteredMessages[] = {
+			//D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
+			//D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
 			D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE, // This warning occurs when using capture frame while graphics debugging.
-			D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE
+			D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE,
+			D3D12_MESSAGE_ID_EXECUTECOMMANDLISTS_WRONGSWAPCHAINBUFFERREFERENCE,
+			D3D12_MESSAGE_ID_RESOURCE_BARRIER_MISMATCHING_COMMAND_LIST_TYPE
 		};
 		D3D12_INFO_QUEUE_FILTER filter = {};
-		filter.DenyList.NumIDs = (UINT)filteredMessages.size();
-		filter.DenyList.pIDList = filteredMessages.data();
-		infoQueue->AddStorageFilterEntries(&filter);
+		filter.DenyList.NumIDs = static_cast<UINT>(std::size(filteredMessages));
+		filter.DenyList.pIDList = filteredMessages;
+		d3dInfoQueue->AddStorageFilterEntries(&filter);
 
-		infoQueue->RegisterMessageCallback(D3D12MessageCallbackFunc, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, nullptr);
+		d3dInfoQueue->RegisterMessageCallback(D3D12MessageCallbackFunc, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, nullptr);
 	}
 #endif // RHI_VALIDATION_ENABLED
 }

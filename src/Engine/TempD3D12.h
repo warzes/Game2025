@@ -2,22 +2,19 @@
 
 inline ComPtr<ID3D12CommandQueue> CreateCommandQueue(ComPtr<ID3D12Device14> device, D3D12_COMMAND_LIST_TYPE type)
 {
-	ComPtr<ID3D12CommandQueue> d3d12CommandQueue;
-
 	D3D12_COMMAND_QUEUE_DESC desc = {};
 	desc.Type = type;
 	desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
 	desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	desc.NodeMask = 0;
 
+	ComPtr<ID3D12CommandQueue> d3d12CommandQueue;
 	HRESULT result = device->CreateCommandQueue(&desc, IID_PPV_ARGS(&d3d12CommandQueue));
 
 	return d3d12CommandQueue;
 }
 
-inline ComPtr<IDXGISwapChain4> CreateSwapChain(HWND hWnd,
-	ComPtr<ID3D12CommandQueue> commandQueue,
-	uint32_t width, uint32_t height, uint32_t bufferCount, bool tearingSupport)
+inline ComPtr<IDXGISwapChain4> CreateSwapChain(HWND hWnd, ComPtr<ID3D12CommandQueue> commandQueue, uint32_t width, uint32_t height, DXGI_FORMAT backBufferFormat, uint32_t bufferCount, bool tearingSupport)
 {
 	ComPtr<IDXGISwapChain4> dxgiSwapChain4;
 	ComPtr<IDXGIFactory4> dxgiFactory4;
@@ -31,66 +28,96 @@ inline ComPtr<IDXGISwapChain4> CreateSwapChain(HWND hWnd,
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
 	swapChainDesc.Width = width;
 	swapChainDesc.Height = height;
-	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	swapChainDesc.Format = backBufferFormat;
 	swapChainDesc.Stereo = FALSE;
 	swapChainDesc.SampleDesc = { 1, 0 };
 	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	swapChainDesc.BufferCount = bufferCount;
 	swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+	swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
 	// It is recommended to always allow tearing if tearing support is available.
 	swapChainDesc.Flags = tearingSupport ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+
+	DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = {};
+	fsSwapChainDesc.Windowed = TRUE;
 
 	ComPtr<IDXGISwapChain1> swapChain1;
 	result = dxgiFactory4->CreateSwapChainForHwnd(
 		commandQueue.Get(),
 		hWnd,
 		&swapChainDesc,
-		nullptr,
+		&fsSwapChainDesc,
 		nullptr,
 		&swapChain1);
 
-	// Disable the Alt+Enter fullscreen toggle feature. Switching to fullscreen
-	// will be handled manually.
-	result = dxgiFactory4->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER);
-
 	swapChain1.As(&dxgiSwapChain4);
+
+	// Disable the Alt+Enter fullscreen toggle feature. Switching to fullscreen will be handled manually.
+	result = dxgiFactory4->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER);
 
 	return dxgiSwapChain4;
 }
 
-inline ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(ComPtr<ID3D12Device2> device,
-	D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t numDescriptors)
+inline ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(ComPtr<ID3D12Device2> device, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t numDescriptors)
 {
-	ComPtr<ID3D12DescriptorHeap> descriptorHeap;
-
 	D3D12_DESCRIPTOR_HEAP_DESC desc = {};
 	desc.NumDescriptors = numDescriptors;
 	desc.Type = type;
 
+	ComPtr<ID3D12DescriptorHeap> descriptorHeap;
 	HRESULT result = device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap));
 
 	return descriptorHeap;
 }
 
-inline void UpdateRenderTargetViews(ComPtr<ID3D12Device2> device,
-	ComPtr<IDXGISwapChain4> swapChain, ComPtr<ID3D12DescriptorHeap> descriptorHeap)
+inline void UpdateRenderTargetViews(ComPtr<ID3D12Device2> device, UINT g_RTVDescriptorSize, ComPtr<IDXGISwapChain4> swapChain, ComPtr<ID3D12DescriptorHeap> descriptorHeap) // TODO: rename
 {
-	auto rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(descriptorHeap->GetCPUDescriptorHandleForHeapStart());
-
 	for (int i = 0; i < NUM_BACK_BUFFERS; ++i)
 	{
-		ComPtr<ID3D12Resource> backBuffer;
-		HRESULT result = swapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer));
+		HRESULT result = swapChain->GetBuffer(i, IID_PPV_ARGS(gRHI.backBuffers[i].GetAddressOf()));
+		wchar_t name[40] = {};
+		swprintf_s(name, L"MainFrame Render target %u", i);
+		gRHI.backBuffers[i]->SetName(name);
 
-		device->CreateRenderTargetView(backBuffer.Get(), nullptr, rtvHandle);
+		const auto cpuHandle = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+		const CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescriptor(cpuHandle, static_cast<INT>(i), g_RTVDescriptorSize);
 
-		gRHI.g_BackBuffers[i] = backBuffer;
+		device->CreateRenderTargetView(gRHI.backBuffers[i].Get(), nullptr, rtvDescriptor);
+	}
 
-		rtvHandle.Offset(rtvDescriptorSize);
+	// TODO:
+	// Allocate a 2-D surface as the depth/stencil buffer and create a depth/stencil view on this surface.
+	{
+		const CD3DX12_HEAP_PROPERTIES depthHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+		D3D12_RESOURCE_DESC depthStencilDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+			gRHI.depthBufferFormat,
+			gRHI.frameBufferWidth,
+			gRHI.frameBufferHeight,
+			1, // Use a single array entry.
+			1  // Use a single mipmap level.
+		);
+		depthStencilDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+		const CD3DX12_CLEAR_VALUE depthOptimizedClearValue(gRHI.depthBufferFormat, 1.0f, 0u);
+
+		device->CreateCommittedResource(
+			&depthHeapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&depthStencilDesc,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			&depthOptimizedClearValue,
+			IID_PPV_ARGS(gRHI.depthStencil.ReleaseAndGetAddressOf())
+		);
+
+		gRHI.depthStencil->SetName(L"Depth stencil");
+
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+		dsvDesc.Format = gRHI.depthBufferFormat;
+		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+
+		const auto cpuHandle = gRHI.dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+		device->CreateDepthStencilView(gRHI.depthStencil.Get(), &dsvDesc, cpuHandle);
 	}
 }
 

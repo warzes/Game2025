@@ -3,7 +3,16 @@
 struct RenderSystemCreateInfo final
 {
 	bool vsync{ false };
+#if RENDER_D3D12
 	bool useWarp{ false };
+
+	struct Debug final
+	{
+		bool enableGPUBasedValidation{ true };
+		bool enableSynchronizedCommandQueueValidation{ true };
+		bool enableAutoName{ true };
+	} debug;
+#endif
 };
 
 inline uint32_t GetGroupCount(uint32_t threadCount, uint32_t groupSize)

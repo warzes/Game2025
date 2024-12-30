@@ -19,35 +19,42 @@ public:
 	void BeginFrame();
 	void EndFrame();
 
-	RenderFeatures             supportFeatures{};
-	ComPtr<IDXGIAdapter4>      adapter;
-	ComPtr<ID3D12Device14>     device;
-	ComPtr<D3D12MA::Allocator> allocator;
+	void WaitForGpu();
+	void MoveToNextFrame();
 
-	ComPtr<IDXGISwapChain4>    swapChain;
-	uint32_t                   frameBufferWidth{ 0 };
-	uint32_t                   frameBufferHeight{ 0 };
+	RenderFeatures                  supportFeatures{};
+	ComPtr<IDXGIAdapter4>           adapter;
+	ComPtr<ID3D12Device14>          device;
+	ComPtr<D3D12MA::Allocator>      allocator;
 
-	bool                       vsync{ false };
+	// Synchronization objects
+	ComPtr<ID3D12Fence>             fence;
+	uint64_t                        fenceValues[NUM_BACK_BUFFERS] = {};
+	Microsoft::WRL::Wrappers::Event fenceEvent;
+
+	ComPtr<IDXGISwapChain4>         swapChain;
+	ComPtr<ID3D12Resource>          backBuffers[NUM_BACK_BUFFERS];
+	ComPtr<ID3D12Resource>          depthStencil;
+	ComPtr<ID3D12DescriptorHeap>    rtvDescriptorHeap;
+	ComPtr<ID3D12DescriptorHeap>    dsvDescriptorHeap;
+	UINT                            rtvDescriptorSize; // размер одного дескриптора
+	UINT                            currentBackBufferIndex{ 0 };
+	uint32_t                        frameBufferWidth{ 0 };
+	uint32_t                        frameBufferHeight{ 0 };
+	const DXGI_FORMAT               backBufferFormat{ DXGI_FORMAT_R8G8B8A8_UNORM };
+	const DXGI_FORMAT               depthBufferFormat{ DXGI_FORMAT_D32_FLOAT };
+
+	bool                            vsync{ false };
 
 	// TEMP =====================================
 	ComPtr<ID3D12CommandQueue>        g_CommandQueue;
-	ComPtr<ID3D12Resource>            g_BackBuffers[NUM_BACK_BUFFERS];
 	ComPtr<ID3D12GraphicsCommandList> g_CommandList;
 	ComPtr<ID3D12CommandAllocator>    g_CommandAllocators[NUM_BACK_BUFFERS];
-	ComPtr<ID3D12DescriptorHeap>      g_RTVDescriptorHeap;
-	UINT                              g_RTVDescriptorSize; // размер одного дескриптора
-	UINT                              g_CurrentBackBufferIndex;
 
-	// Synchronization objects
-	ComPtr<ID3D12Fence>               g_Fence;
-	uint64_t                          g_FenceValue = 0;
-	uint64_t                          g_FrameFenceValues[NUM_BACK_BUFFERS] = {};
-	HANDLE                            g_FenceEvent;
 	// TEMP =====================================
 
 private:
-	void enableDebugLayer();
+	void enableDebugLayer(const RenderSystemCreateInfo& createInfo);
 	bool createAdapter(const RenderSystemCreateInfo& createInfo);
 	bool createDevice();
 	void configInfoQueue();
