@@ -9,14 +9,20 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
-    <ClInclude Include="001_Render_TriangleBindless.h">
-      <Filter>Examples\Render</Filter>
-    </ClInclude>
     <ClInclude Include="GameConfig.h" />
-    <ClInclude Include="002_Render_RotateCubeBindless.h">
-      <Filter>Examples\Render</Filter>
+    <ClInclude Include="001_oRender_TriangleBindless.h">
+      <Filter>Examples\Render\old</Filter>
+    </ClInclude>
+    <ClInclude Include="002_oRender_RotateCubeBindless.h">
+      <Filter>Examples\Render\old</Filter>
+    </ClInclude>
+    <ClInclude Include="000_oRender_Clear.h">
+      <Filter>Examples\Render\old</Filter>
     </ClInclude>
     <ClInclude Include="000_Render_Clear.h">
+      <Filter>Examples\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="001_Render_Triangle.h">
       <Filter>Examples\Render</Filter>
     </ClInclude>
   </ItemGroup>
@@ -29,6 +35,9 @@
     </Filter>
     <Filter Include="Examples\Render">
       <UniqueIdentifier>{4875f2b7-6835-4e5e-804f-4388e976ed28}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Examples\Render\old">
+      <UniqueIdentifier>{e38859d5-73f2-482d-a0c5-31170a1b7be8}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
