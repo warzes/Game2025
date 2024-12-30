@@ -62,8 +62,10 @@ inline ComPtr<IDXGISwapChain4> CreateSwapChain(HWND hWnd, ComPtr<ID3D12CommandQu
 inline ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(ComPtr<ID3D12Device2> device, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t numDescriptors)
 {
 	D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-	desc.NumDescriptors = numDescriptors;
 	desc.Type = type;
+	desc.NumDescriptors = numDescriptors;
+	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	desc.NodeMask = 0;
 
 	ComPtr<ID3D12DescriptorHeap> descriptorHeap;
 	HRESULT result = device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap));
@@ -91,13 +93,9 @@ inline void UpdateRenderTargetViews(ComPtr<ID3D12Device2> device, UINT g_RTVDesc
 	{
 		const CD3DX12_HEAP_PROPERTIES depthHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
 		D3D12_RESOURCE_DESC depthStencilDesc = CD3DX12_RESOURCE_DESC::Tex2D(
-			gRHI.depthBufferFormat,
-			gRHI.frameBufferWidth,
-			gRHI.frameBufferHeight,
-			1, // Use a single array entry.
-			1  // Use a single mipmap level.
+			gRHI.depthBufferFormat, gRHI.frameBufferWidth, gRHI.frameBufferHeight, 1, 0, 1, 0,
+			D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL
 		);
-		depthStencilDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
 		const CD3DX12_CLEAR_VALUE depthOptimizedClearValue(gRHI.depthBufferFormat, 1.0f, 0u);
 
@@ -109,12 +107,13 @@ inline void UpdateRenderTargetViews(ComPtr<ID3D12Device2> device, UINT g_RTVDesc
 			&depthOptimizedClearValue,
 			IID_PPV_ARGS(gRHI.depthStencil.ReleaseAndGetAddressOf())
 		);
-
 		gRHI.depthStencil->SetName(L"Depth stencil");
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
 		dsvDesc.Format = gRHI.depthBufferFormat;
 		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		dsvDesc.Texture2D.MipSlice = 0;
+		dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
 
 		const auto cpuHandle = gRHI.dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 		device->CreateDepthStencilView(gRHI.depthStencil.Get(), &dsvDesc, cpuHandle);
