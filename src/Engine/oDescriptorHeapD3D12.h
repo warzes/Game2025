@@ -2,7 +2,7 @@
 
 #if RENDER_D3D12
 
-#include "RenderCoreD3D12.h"
+#include "oRenderCoreD3D12.h"
 
 class DescriptorHeap
 {

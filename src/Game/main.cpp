@@ -1,7 +1,8 @@
 ﻿#include "stdafx.h"
 #if EXAMPLE
-#	include "000_Render_TriangleBindless.h"
-#	include "001_Render_RotateCubeBindless.h"
+#	include "000_Render_Clear.h"
+#	include "001_Render_TriangleBindless.h"
+#	include "002_Render_RotateCubeBindless.h"
 #endif
 //=============================================================================
 #if defined(_MSC_VER)
@@ -16,6 +17,7 @@ int main(
 #if EXAMPLE_RUN
 	ExampleRender000();
 	//ExampleRender001();
+	//ExampleRender002();
 #else
 	extern void GameApp();
 	GameApp();

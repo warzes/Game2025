@@ -2,7 +2,7 @@
 
 #if RENDER_D3D12
 
-#include "DescriptorHeapD3D12.h"
+#include "oDescriptorHeapD3D12.h"
 
 class CommandContextD3D12
 {

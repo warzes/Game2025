@@ -1,6 +1,6 @@
 ﻿#include "stdafx.h"
 #if RENDER_D3D12
-#include "DescriptorHeapD3D12.h"
+#include "oDescriptorHeapD3D12.h"
 #include "Log.h"
 //=============================================================================
 DescriptorHeap::DescriptorHeap(ComPtr<ID3D12Device> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible)

@@ -1,7 +1,7 @@
 ﻿#include "stdafx.h"
 #if RENDER_D3D12
-#include "CommandQueueD3D12.h"
-#include "RenderCoreD3D12.h"
+#include "oCommandQueueD3D12.h"
+#include "oRenderCoreD3D12.h"
 #include "Log.h"
 //=============================================================================
 CommandQueueD3D12::CommandQueueD3D12(ComPtr<ID3D12Device> device, D3D12_COMMAND_LIST_TYPE commandType)

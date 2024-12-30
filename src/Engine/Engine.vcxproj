@@ -95,10 +95,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BaseHeader.h" />
-    <ClInclude Include="CommandContextD3D12.h" />
-    <ClInclude Include="DescriptorHeapD3D12.h" />
-    <ClInclude Include="CommandQueueD3D12.h" />
-    <ClInclude Include="RenderCoreD3D12.h" />
+    <ClInclude Include="BaseMacros.h" />
+    <ClInclude Include="HighResolutionTimer.h" />
+    <ClInclude Include="oCommandContextD3D12.h" />
+    <ClInclude Include="oDescriptorHeapD3D12.h" />
+    <ClInclude Include="oCommandQueueD3D12.h" />
+    <ClInclude Include="oRenderCoreD3D12.h" />
     <ClInclude Include="EngineApp.h" />
     <ClInclude Include="EngineConfigMacros.h" />
     <ClInclude Include="InputCore.h" />
@@ -110,27 +112,32 @@
     <ClInclude Include="PrivateHeader.h" />
     <ClInclude Include="RenderCore.h" />
     <ClInclude Include="RenderSystem.h" />
-    <ClInclude Include="RHIBackend.h" />
+    <ClInclude Include="oRHIBackendD3D12.h" />
     <ClInclude Include="RHIBackendD3D12.h" />
+    <ClInclude Include="RHICoreD3D12.h" />
     <ClInclude Include="RHIResourcesD3D12.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="TempD3D12.h" />
     <ClInclude Include="WindowCore.h" />
     <ClInclude Include="WindowData.h" />
     <ClInclude Include="WindowSystem.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CommandContextD3D12.cpp" />
-    <ClCompile Include="DescriptorHeapD3D12.cpp" />
+    <ClCompile Include="HighResolutionTimer.cpp" />
+    <ClCompile Include="oCommandContextD3D12.cpp" />
+    <ClCompile Include="oDescriptorHeapD3D12.cpp" />
     <ClCompile Include="EngineApp.cpp" />
     <ClCompile Include="InputSystemWin32.cpp" />
     <ClCompile Include="KeyboardWin32.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="LogSystem.cpp" />
     <ClCompile Include="MouseWin32.cpp" />
-    <ClCompile Include="CommandQueueD3D12.cpp" />
-    <ClCompile Include="RenderCoreD3D12.cpp" />
+    <ClCompile Include="oCommandQueueD3D12.cpp" />
+    <ClCompile Include="oRenderCoreD3D12.cpp" />
     <ClCompile Include="RenderSystem.cpp" />
+    <ClCompile Include="oRHIBackendD3D12.cpp" />
     <ClCompile Include="RHIBackendD3D12.cpp" />
+    <ClCompile Include="RHICoreD3D12.cpp" />
     <ClCompile Include="RHIResourcesD3D12.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

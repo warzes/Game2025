@@ -4,6 +4,7 @@
 
 // Base
 #include "Engine/BaseHeader.h"
+#include "Engine/BaseMacros.h"
 
 // Debug
 #include "Engine/Log.h"

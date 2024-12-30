@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-void ExampleRender000()
+void ExampleRender001()
 {
 	EngineAppCreateInfo engineAppCreateInfo{};
 	EngineApp engine;

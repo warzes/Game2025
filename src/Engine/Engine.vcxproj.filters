@@ -26,23 +26,32 @@
     <ClCompile Include="RenderSystem.cpp">
       <Filter>RHI</Filter>
     </ClCompile>
-    <ClCompile Include="RenderCoreD3D12.cpp">
+    <ClCompile Include="oRenderCoreD3D12.cpp">
       <Filter>RHI\Direct3D12\old</Filter>
     </ClCompile>
-    <ClCompile Include="RHIBackendD3D12.cpp">
+    <ClCompile Include="oRHIBackendD3D12.cpp">
       <Filter>RHI\Direct3D12\old</Filter>
     </ClCompile>
-    <ClCompile Include="CommandQueueD3D12.cpp">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClCompile>
-    <ClCompile Include="CommandContextD3D12.cpp">
+    <ClCompile Include="oCommandContextD3D12.cpp">
       <Filter>RHI\Direct3D12\old</Filter>
     </ClCompile>
-    <ClCompile Include="DescriptorHeapD3D12.cpp">
-      <Filter>RHI\Direct3D12</Filter>
+    <ClCompile Include="oCommandQueueD3D12.cpp">
+      <Filter>RHI\Direct3D12\old</Filter>
+    </ClCompile>
+    <ClCompile Include="oDescriptorHeapD3D12.cpp">
+      <Filter>RHI\Direct3D12\old</Filter>
     </ClCompile>
     <ClCompile Include="RHIResourcesD3D12.cpp">
       <Filter>RHI\Direct3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="RHIBackendD3D12.cpp">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="RHICoreD3D12.cpp">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="HighResolutionTimer.cpp">
+      <Filter>Platform\Timer</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -89,29 +98,41 @@
     <ClInclude Include="RenderSystem.h">
       <Filter>RHI</Filter>
     </ClInclude>
-    <ClInclude Include="RHIBackend.h">
-      <Filter>RHI</Filter>
-    </ClInclude>
     <ClInclude Include="RenderCore.h">
       <Filter>RHI</Filter>
     </ClInclude>
-    <ClInclude Include="RenderCoreD3D12.h">
+    <ClInclude Include="oRenderCoreD3D12.h">
       <Filter>RHI\Direct3D12\old</Filter>
     </ClInclude>
-    <ClInclude Include="RHIBackendD3D12.h">
+    <ClInclude Include="oRHIBackendD3D12.h">
       <Filter>RHI\Direct3D12\old</Filter>
     </ClInclude>
-    <ClInclude Include="CommandQueueD3D12.h">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClInclude>
-    <ClInclude Include="CommandContextD3D12.h">
+    <ClInclude Include="oCommandContextD3D12.h">
       <Filter>RHI\Direct3D12\old</Filter>
     </ClInclude>
-    <ClInclude Include="DescriptorHeapD3D12.h">
-      <Filter>RHI\Direct3D12</Filter>
+    <ClInclude Include="oCommandQueueD3D12.h">
+      <Filter>RHI\Direct3D12\old</Filter>
+    </ClInclude>
+    <ClInclude Include="oDescriptorHeapD3D12.h">
+      <Filter>RHI\Direct3D12\old</Filter>
     </ClInclude>
     <ClInclude Include="RHIResourcesD3D12.h">
       <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="RHIBackendD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="RHICoreD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="TempD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="BaseMacros.h">
+      <Filter>Base</Filter>
+    </ClInclude>
+    <ClInclude Include="HighResolutionTimer.h">
+      <Filter>Platform\Timer</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -144,6 +165,9 @@
     </Filter>
     <Filter Include="RHI\Direct3D12\old">
       <UniqueIdentifier>{92dc392e-35cd-401d-82fd-47a14b99f3db}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Platform\Timer">
+      <UniqueIdentifier>{a9ee12a0-ebab-42e5-b324-0ff3abcb6193}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

@@ -1,8 +1,10 @@
 ﻿#pragma once
 
 #include "RenderCore.h"
-#include "CommandContextD3D12.h" // TODO: temp
-#include "RHIBackend.h" // TODO: temp
+
+#if RENDER_D3D12
+#	include "RHIBackendD3D12.h" // TODO: temp
+#endif // RENDER_D3D12
 
 struct WindowData;
 
@@ -17,7 +19,6 @@ public:
 	void Resize(uint32_t width, uint32_t height);
 	void BeginFrame();
 	void EndFrame();
-	void Present();
 
 	glm::ivec2 GetFrameBufferSize() const;
 };

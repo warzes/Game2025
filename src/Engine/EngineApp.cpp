@@ -106,6 +106,5 @@ void EngineApp::EndFrame()
 {
 	if (IsShouldClose()) return;
 	m_render.EndFrame();
-	m_render.Present();
 }
 //=============================================================================

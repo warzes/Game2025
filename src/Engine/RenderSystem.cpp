@@ -1,6 +1,5 @@
 ﻿#include "stdafx.h"
 #include "RenderSystem.h"
-#include "RHIBackend.h"
 //=============================================================================
 RenderSystem::~RenderSystem()
 {
@@ -15,7 +14,6 @@ bool RenderSystem::Create(const WindowData& wndData, const RenderSystemCreateInf
 //=============================================================================
 void RenderSystem::Destroy()
 {
-	WaitForIdle();
 	gRHI.DestroyAPI();
 }
 //=============================================================================
@@ -34,13 +32,8 @@ void RenderSystem::EndFrame()
 	gRHI.EndFrame();
 }
 //=============================================================================
-void RenderSystem::Present()
-{
-	gRHI.Present();
-}
-//=============================================================================
 glm::ivec2 RenderSystem::GetFrameBufferSize() const
 {
-	return { gRHI.frameBufferWidth, gRHI.frameBufferHeight }; // TODO: temp
+	return { gRHI.frameBufferWidth, gRHI.frameBufferHeight };
 }
 //=============================================================================

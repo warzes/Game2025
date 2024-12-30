@@ -3,6 +3,7 @@
 struct RenderSystemCreateInfo final
 {
 	bool vsync{ false };
+	bool useWarp{ false };
 };
 
 inline uint32_t GetGroupCount(uint32_t threadCount, uint32_t groupSize)

@@ -5,7 +5,6 @@
 #include "RenderCore.h"
 
 constexpr uint32_t    NUM_FRAMES_IN_FLIGHT = 2;
-constexpr uint32_t    NUM_BACK_BUFFERS = 3;
 constexpr uint32_t    NUM_RTV_STAGING_DESCRIPTORS = 256;
 constexpr uint32_t    NUM_DSV_STAGING_DESCRIPTORS = 32;
 constexpr uint32_t    NUM_SRV_STAGING_DESCRIPTORS = 4096;
@@ -106,9 +105,6 @@ inline TextureViewFlags operator&(TextureViewFlags a, TextureViewFlags b)
 {
 	return static_cast<TextureViewFlags>(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
 }
-
-const std::string DXErrorToStr(HRESULT hr);
-const std::string ConvertStr(D3D_FEATURE_LEVEL level);
 
 struct ContextSubmissionResult final
 {
@@ -371,9 +367,6 @@ struct EndOfFrameFences final
 	uint64_t copyQueueFence = 0;
 };
 
-struct RenderFeatures final
-{
-	bool allowTearing{ false };
-};
+#include "RHICoreD3D12.h"
 
 #endif // RENDER_D3D12

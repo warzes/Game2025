@@ -1,6 +1,6 @@
 ﻿#include "stdafx.h"
 
-void ExampleRender001()
+void ExampleRender002()
 {
 	EngineAppCreateInfo engineAppCreateInfo{};
 	EngineApp engine;
@@ -97,7 +97,7 @@ void ExampleRender001()
 
 			memcpy_s(bufferUpload->bufferData.get(), sizeof(meshVertices), meshVertices, sizeof(meshVertices));
 
-			gRHI.GetUploadContextForCurrentFrame().AddBufferUpload(std::move(bufferUpload)); // добавить в очередь - загрузка данных сразу на gpu, эффективней чем хранить в cpu (в пред примере с треугольником)
+			ogRHI.GetUploadContextForCurrentFrame().AddBufferUpload(std::move(bufferUpload)); // добавить в очередь - загрузка данных сразу на gpu, эффективней чем хранить в cpu (в пред примере с треугольником)
 
 			mWoodTexture = CreateTextureFromFile("Data/Textures/Wood.dds");
 
@@ -182,15 +182,15 @@ void ExampleRender001()
 		{
 			engine.BeginFrame();
 
-			TextureResource& backBuffer = gRHI.GetCurrentBackBuffer();
+			TextureResource& backBuffer = ogRHI.GetCurrentBackBuffer();
 
-			gRHI.graphicsContext->Reset();
-			gRHI.graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			gRHI.graphicsContext->AddBarrier(*mDepthBuffer, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-			gRHI.graphicsContext->FlushBarriers();
+			ogRHI.graphicsContext->Reset();
+			ogRHI.graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			ogRHI.graphicsContext->AddBarrier(*mDepthBuffer, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+			ogRHI.graphicsContext->FlushBarriers();
 
-			gRHI.graphicsContext->ClearRenderTarget(backBuffer, glm::vec4(0.3f, 0.3f, 0.8f, 1.0f));
-			gRHI.graphicsContext->ClearDepthStencilTarget(*mDepthBuffer, 1.0f, 0);
+			ogRHI.graphicsContext->ClearRenderTarget(backBuffer, glm::vec4(0.3f, 0.3f, 0.8f, 1.0f));
+			ogRHI.graphicsContext->ClearDepthStencilTarget(*mDepthBuffer, 1.0f, 0);
 
 			static float rotation = 0.0f;
 			rotation += 0.01f;
@@ -202,27 +202,27 @@ void ExampleRender001()
 				meshConstants.textureIndex = mWoodTexture->descriptorHeapIndex;
 				meshConstants.worldMatrix = glm::rotate(glm::mat4(1.0f), rotation, glm::vec3(0.0f, 1.0f, 0.0f));
 
-				mMeshConstantBuffers[gRHI.GetCurrentBackBufferIndex()]->SetMappedData(&meshConstants, sizeof(MeshConstants));
+				mMeshConstantBuffers[ogRHI.GetCurrentBackBufferIndex()]->SetMappedData(&meshConstants, sizeof(MeshConstants));
 
-				mMeshPerObjectResourceSpace.SetCBV(mMeshConstantBuffers[gRHI.GetCurrentBackBufferIndex()].get());
+				mMeshPerObjectResourceSpace.SetCBV(mMeshConstantBuffers[ogRHI.GetCurrentBackBufferIndex()].get());
 
 				PipelineInfo pipeline;
 				pipeline.pipeline = mMeshPSO.get();
 				pipeline.renderTargets.push_back(&backBuffer);
 				pipeline.depthStencilTarget = mDepthBuffer.get();
 
-				gRHI.graphicsContext->SetPipeline(pipeline);
-				gRHI.graphicsContext->SetPipelineResources(PER_OBJECT_SPACE, mMeshPerObjectResourceSpace);
-				gRHI.graphicsContext->SetPipelineResources(PER_PASS_SPACE, mMeshPerPassResourceSpace);
-				gRHI.graphicsContext->SetDefaultViewPortAndScissor(rhi.GetFrameBufferSize());
-				gRHI.graphicsContext->SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				gRHI.graphicsContext->Draw(36);
+				ogRHI.graphicsContext->SetPipeline(pipeline);
+				ogRHI.graphicsContext->SetPipelineResources(PER_OBJECT_SPACE, mMeshPerObjectResourceSpace);
+				ogRHI.graphicsContext->SetPipelineResources(PER_PASS_SPACE, mMeshPerPassResourceSpace);
+				ogRHI.graphicsContext->SetDefaultViewPortAndScissor(rhi.GetFrameBufferSize());
+				ogRHI.graphicsContext->SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				ogRHI.graphicsContext->Draw(36);
 			}
 
-			gRHI.graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
-			gRHI.graphicsContext->FlushBarriers();
+			ogRHI.graphicsContext->AddBarrier(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
+			ogRHI.graphicsContext->FlushBarriers();
 
-			SubmitContextWork(*gRHI.graphicsContext);
+			SubmitContextWork(*ogRHI.graphicsContext);
 
 			engine.EndFrame();
 		}

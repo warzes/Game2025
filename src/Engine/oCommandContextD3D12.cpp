@@ -1,7 +1,7 @@
 ﻿#include "stdafx.h"
 #if RENDER_D3D12
-#include "CommandContextD3D12.h"
-#include "RHIBackendD3D12.h"
+#include "oCommandContextD3D12.h"
+#include "oRHIBackendD3D12.h"
 #include "Log.h"
 //=============================================================================
 CommandContextD3D12::CommandContextD3D12(D3D12_COMMAND_LIST_TYPE commandType) 
@@ -10,7 +10,7 @@ CommandContextD3D12::CommandContextD3D12(D3D12_COMMAND_LIST_TYPE commandType)
 	HRESULT result;
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
-		result = gRHI.device->CreateCommandAllocator(commandType, IID_PPV_ARGS(&m_commandAllocators[frameIndex]));
+		result = ogRHI.device->CreateCommandAllocator(commandType, IID_PPV_ARGS(&m_commandAllocators[frameIndex]));
 		if (FAILED(result))
 		{
 			Fatal("ID3D12Device::CreateCommandAllocator() failed: " + DXErrorToStr(result));
@@ -18,7 +18,7 @@ CommandContextD3D12::CommandContextD3D12(D3D12_COMMAND_LIST_TYPE commandType)
 		}
 	}
 
-	result = gRHI.device->CreateCommandList1(0, commandType, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&m_commandList));
+	result = ogRHI.device->CreateCommandList1(0, commandType, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&m_commandList));
 	if (FAILED(result))
 	{
 		Fatal("ID3D12Device::CreateCommandList1() failed: " + DXErrorToStr(result));
@@ -28,7 +28,7 @@ CommandContextD3D12::CommandContextD3D12(D3D12_COMMAND_LIST_TYPE commandType)
 //=============================================================================
 void CommandContextD3D12::Reset()
 {
-	const uint32_t frameId = gRHI.GetCurrentBackBufferIndex();
+	const uint32_t frameId = ogRHI.GetCurrentBackBufferIndex();
 
 	m_commandAllocators[frameId]->Reset();
 	m_commandList->Reset(m_commandAllocators[frameId].Get(), nullptr);
@@ -93,12 +93,12 @@ void CommandContextD3D12::FlushBarriers()
 //=============================================================================
 void CommandContextD3D12::bindDescriptorHeaps(uint32_t frameIndex)
 {
-	m_currentSRVHeap = &gRHI.GetSRVHeap(frameIndex);
+	m_currentSRVHeap = &ogRHI.GetSRVHeap(frameIndex);
 	m_currentSRVHeap->Reset();
 
 	ID3D12DescriptorHeap* heapsToBind[2];
-	heapsToBind[0] = gRHI.GetSRVHeap(frameIndex).GetHeap().Get();
-	heapsToBind[1] = gRHI.GetSamplerHeap().GetHeap().Get();
+	heapsToBind[0] = ogRHI.GetSRVHeap(frameIndex).GetHeap().Get();
+	heapsToBind[1] = ogRHI.GetSamplerHeap().GetHeap().Get();
 
 	m_commandList->SetDescriptorHeaps(2, heapsToBind);
 }
