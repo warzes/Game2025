@@ -76,7 +76,6 @@
 //#	define _WIN32_WINNT 0x0601 // Windows 7
 #	define _WIN32_WINNT 0x0A00 // Windows 10
 #	include <sdkddkver.h>
-
 #	include <Windows.h>
 
 #	if defined(CreateWindow)
@@ -87,17 +86,22 @@
 
 #if RENDER_D3D12
 
+#	include <wrl/client.h>
+#	include <wrl/event.h>
+
 #	include <d3dcompiler.h>
 #	include <d3d12.h>
 #	include <dxgi1_6.h>
 #	if defined(_DEBUG)
 #		include <dxgidebug.h>
 #	endif
-#	include <wrl.h>
+
 #	include <d3dx12.h>
 #	include <D3D12MemAlloc.h>
 #	include <DirectXShaderCompiler/dxcapi.h>
 #	include <DirectXTex/DirectXTex.h>
+
+#	include <pix.h>
 
 using Microsoft::WRL::ComPtr;
 #endif // RENDER_D3D12

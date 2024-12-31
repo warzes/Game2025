@@ -66,7 +66,7 @@ const std::string DXErrorToStr(HRESULT hr)
 #undef CASE_TO_STR
 }
 //=============================================================================
-const std::string ConvertStr(D3D_FEATURE_LEVEL level)
+const std::string ConvertToStr(D3D_FEATURE_LEVEL level)
 {
 	switch (level)
 	{

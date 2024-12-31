@@ -178,7 +178,7 @@ void oRHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 		return;
 	}
 
-	result = swapChain->ResizeBuffers(NUM_BACK_BUFFERS, width, height, swapChainDesc.BufferDesc.Format, swapChainDesc.Flags);
+	result = swapChain->ResizeBuffers(MAX_BACK_BUFFER_COUNT, width, height, swapChainDesc.BufferDesc.Format, swapChainDesc.Flags);
 	if (FAILED(result))
 	{
 		Fatal("IDXGISwapChain4::ResizeBuffers() failed:" + DXErrorToStr(result));
@@ -358,7 +358,7 @@ bool oRHIBackend::createDevice()
 		result = D3D12CreateDevice(adapter.Get(), featureLevel, IID_PPV_ARGS(&device));
 		if (SUCCEEDED(result))
 		{
-			Print("Direct3D 12 Feature Level: " + ConvertStr(featureLevel));
+			Print("Direct3D 12 Feature Level: " + ConvertToStr(featureLevel));
 			break;
 		}
 	}
@@ -494,7 +494,7 @@ bool oRHIBackend::createSwapChain(const WindowData& wndData)
 	swapChainDesc.Stereo                = FALSE;
 	swapChainDesc.SampleDesc            = { 1, 0 };
 	swapChainDesc.BufferUsage           = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.BufferCount           = NUM_BACK_BUFFERS;
+	swapChainDesc.BufferCount           = MAX_BACK_BUFFER_COUNT;
 	swapChainDesc.SwapEffect            = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	swapChainDesc.Scaling               = DXGI_SCALING_STRETCH;
 	swapChainDesc.AlphaMode             = DXGI_ALPHA_MODE_UNSPECIFIED;
@@ -530,7 +530,7 @@ bool oRHIBackend::createSwapChain(const WindowData& wndData)
 //=============================================================================
 bool oRHIBackend::createMainRenderTarget()
 {
-	for (uint32_t bufferIndex = 0; bufferIndex < NUM_BACK_BUFFERS; bufferIndex++)
+	for (uint32_t bufferIndex = 0; bufferIndex < MAX_BACK_BUFFER_COUNT; bufferIndex++)
 	{
 		ComPtr<ID3D12Resource> backBufferResource;
 		HRESULT result = swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&backBufferResource));
@@ -561,7 +561,7 @@ bool oRHIBackend::createMainRenderTarget()
 //=============================================================================
 void oRHIBackend::destroyMainRenderTarget()
 {
-	for (uint32_t bufferIndex = 0; bufferIndex < NUM_BACK_BUFFERS; bufferIndex++)
+	for (uint32_t bufferIndex = 0; bufferIndex < MAX_BACK_BUFFER_COUNT; bufferIndex++)
 	{
 		if (backBuffers[bufferIndex])
 		{

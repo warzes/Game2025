@@ -57,7 +57,7 @@ public:
 	Descriptor                   ImguiDescriptors[NUM_FRAMES_IN_FLIGHT]{};
 
 	ComPtr<IDXGISwapChain4>      swapChain;
-	TextureResource*             backBuffers[NUM_BACK_BUFFERS]{};
+	TextureResource*             backBuffers[MAX_BACK_BUFFER_COUNT]{};
 	uint32_t                     frameBufferWidth{ 0 };
 	uint32_t                     frameBufferHeight{ 0 };
 	uint32_t                     currentBackBufferIndex{ 0 }; // TODO: юзать swapChain->GetCurrentBackBufferIndex()

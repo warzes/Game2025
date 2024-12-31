@@ -125,9 +125,6 @@
     <ClInclude Include="RHICoreD3D12.h">
       <Filter>RHI\Direct3D12</Filter>
     </ClInclude>
-    <ClInclude Include="TempD3D12.h">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClInclude>
     <ClInclude Include="BaseMacros.h">
       <Filter>Base</Filter>
     </ClInclude>

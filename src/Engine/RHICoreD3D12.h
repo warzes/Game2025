@@ -2,7 +2,7 @@
 
 #if RENDER_D3D12
 
-constexpr uint32_t    NUM_BACK_BUFFERS = 3;
+constexpr uint32_t MAX_BACK_BUFFER_COUNT = 3;
 
 struct RenderFeatures final
 {
@@ -10,6 +10,6 @@ struct RenderFeatures final
 };
 
 const std::string DXErrorToStr(HRESULT hr);
-const std::string ConvertStr(D3D_FEATURE_LEVEL level);
+const std::string ConvertToStr(D3D_FEATURE_LEVEL level);
 
 #endif // RENDER_D3D12

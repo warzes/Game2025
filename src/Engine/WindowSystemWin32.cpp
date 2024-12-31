@@ -146,12 +146,12 @@ bool WindowSystem::Create(const WindowSystemCreateInfo& createInfo)
 	m_fullscreen = createInfo.fullScreen;
 
 	WNDCLASSEX windowClassInfo{ .cbSize = sizeof(WNDCLASSEX) };
-	windowClassInfo.style = CS_HREDRAW | CS_VREDRAW;
-	windowClassInfo.lpfnWndProc = WndProc;
-	windowClassInfo.hInstance = m_handleInstance;
-	windowClassInfo.hIcon = LoadIconW(nullptr, L"IDI_ICON");
-	windowClassInfo.hIconSm = LoadIconW(m_handleInstance, L"IDI_ICON");
-	windowClassInfo.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	windowClassInfo.style         = CS_HREDRAW | CS_VREDRAW;
+	windowClassInfo.lpfnWndProc   = WndProc;
+	windowClassInfo.hInstance     = m_handleInstance;
+	windowClassInfo.hIcon         = LoadIconW(nullptr, L"IDI_ICON");
+	windowClassInfo.hIconSm       = LoadIconW(m_handleInstance, L"IDI_ICON");
+	windowClassInfo.hCursor       = LoadCursor(nullptr, IDC_ARROW);
 	windowClassInfo.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
 	windowClassInfo.lpszClassName = windowClassName;
 	if (!RegisterClassEx(&windowClassInfo))

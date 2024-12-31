@@ -117,7 +117,6 @@
     <ClInclude Include="RHICoreD3D12.h" />
     <ClInclude Include="RHIResourcesD3D12.h" />
     <ClInclude Include="stdafx.h" />
-    <ClInclude Include="TempD3D12.h" />
     <ClInclude Include="WindowCore.h" />
     <ClInclude Include="WindowData.h" />
     <ClInclude Include="WindowSystem.h" />
