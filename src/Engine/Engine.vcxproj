@@ -96,6 +96,11 @@
   <ItemGroup>
     <ClInclude Include="BaseHeader.h" />
     <ClInclude Include="BaseMacros.h" />
+    <ClInclude Include="CommandAllocatorPoolD3D12.h" />
+    <ClInclude Include="CommandListManagerD3D12.h" />
+    <ClInclude Include="CommandQueueD3D12.h" />
+    <ClInclude Include="ContextD3D12.h" />
+    <ClInclude Include="DeviceD3D12.h" />
     <ClInclude Include="HighResolutionTimer.h" />
     <ClInclude Include="oCommandContextD3D12.h" />
     <ClInclude Include="oDescriptorHeapD3D12.h" />
@@ -115,6 +120,7 @@
     <ClInclude Include="oRHIBackendD3D12.h" />
     <ClInclude Include="RHIBackendD3D12.h" />
     <ClInclude Include="RHICoreD3D12.h" />
+    <ClInclude Include="RHIFrameworlkD3D12.h" />
     <ClInclude Include="RHIResourcesD3D12.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="WindowCore.h" />
@@ -122,6 +128,11 @@
     <ClInclude Include="WindowSystem.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CommandAllocatorPoolD3D12.cpp" />
+    <ClCompile Include="CommandListManagerD3D12.cpp" />
+    <ClCompile Include="CommandQueueD3D12.cpp" />
+    <ClCompile Include="ContextD3D12.cpp" />
+    <ClCompile Include="DeviceD3D12.cpp" />
     <ClCompile Include="HighResolutionTimer.cpp" />
     <ClCompile Include="oCommandContextD3D12.cpp" />
     <ClCompile Include="oDescriptorHeapD3D12.cpp" />
@@ -137,6 +148,7 @@
     <ClCompile Include="oRHIBackendD3D12.cpp" />
     <ClCompile Include="RHIBackendD3D12.cpp" />
     <ClCompile Include="RHICoreD3D12.cpp" />
+    <ClCompile Include="RHIFrameworlkD3D12.cpp" />
     <ClCompile Include="RHIResourcesD3D12.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

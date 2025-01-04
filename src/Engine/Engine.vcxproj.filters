@@ -53,6 +53,24 @@
     <ClCompile Include="HighResolutionTimer.cpp">
       <Filter>Platform\Timer</Filter>
     </ClCompile>
+    <ClCompile Include="RHIFrameworlkD3D12.cpp">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="CommandAllocatorPoolD3D12.cpp">
+      <Filter>RHI\Direct3D12\System\CommandSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="CommandQueueD3D12.cpp">
+      <Filter>RHI\Direct3D12\System\CommandSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="CommandListManagerD3D12.cpp">
+      <Filter>RHI\Direct3D12\System\CommandSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="DeviceD3D12.cpp">
+      <Filter>RHI\Direct3D12\Low</Filter>
+    </ClCompile>
+    <ClCompile Include="ContextD3D12.cpp">
+      <Filter>RHI\Direct3D12\Low</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -131,6 +149,24 @@
     <ClInclude Include="HighResolutionTimer.h">
       <Filter>Platform\Timer</Filter>
     </ClInclude>
+    <ClInclude Include="RHIFrameworlkD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="CommandAllocatorPoolD3D12.h">
+      <Filter>RHI\Direct3D12\System\CommandSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="CommandQueueD3D12.h">
+      <Filter>RHI\Direct3D12\System\CommandSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="CommandListManagerD3D12.h">
+      <Filter>RHI\Direct3D12\System\CommandSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="DeviceD3D12.h">
+      <Filter>RHI\Direct3D12\Low</Filter>
+    </ClInclude>
+    <ClInclude Include="ContextD3D12.h">
+      <Filter>RHI\Direct3D12\Low</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Base">
@@ -165,6 +201,15 @@
     </Filter>
     <Filter Include="Platform\Timer">
       <UniqueIdentifier>{a9ee12a0-ebab-42e5-b324-0ff3abcb6193}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RHI\Direct3D12\System">
+      <UniqueIdentifier>{e6314090-fa37-48f7-9e49-128a3a23036d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RHI\Direct3D12\System\CommandSystem">
+      <UniqueIdentifier>{ac92582d-a135-44a6-8070-156b2eaf1c91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RHI\Direct3D12\Low">
+      <UniqueIdentifier>{5bd4f3c0-522e-4b74-92ef-e69dbbabd555}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

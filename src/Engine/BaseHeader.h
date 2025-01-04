@@ -30,6 +30,7 @@
 #include <string>
 #include <string_view>
 #include <array>
+#include <queue>
 #include <vector>
 #include <unordered_map>
 

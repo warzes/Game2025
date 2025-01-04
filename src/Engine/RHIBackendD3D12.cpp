@@ -4,6 +4,7 @@
 #include "WindowData.h"
 #include "Log.h"
 #include "RenderCore.h"
+#include "CommandListManagerD3D12.h"
 //=============================================================================
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -15,27 +16,15 @@ extern "C" { __declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\
 //=============================================================================
 RHIBackend gRHI{};
 //=============================================================================
-#if RHI_VALIDATION_ENABLED
-void D3D12MessageCallbackFunc(D3D12_MESSAGE_CATEGORY Category, D3D12_MESSAGE_SEVERITY Severity, D3D12_MESSAGE_ID ID, LPCSTR pDescription, void* pContext) noexcept
-{
-	Print(pDescription);
-}
-#endif // RHI_VALIDATION_ENABLED
-//=============================================================================
-RHIBackend::~RHIBackend()
-{
-	assert(!device);
-}
-//=============================================================================
 bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateInfo& createInfo)
 {
 	setSize(wndData.width, wndData.height);
 	vsync = createInfo.vsync;
 
-	enableDebugLayer(createInfo);
-	if (!selectAdapter(createInfo)) return false;
-	if (!createDevice())            return false;
-	if (!createAllocator())         return false;
+	if (!context.Create(createInfo.context)) return false;
+	supportFeatures.allowTearing = context.IsSupportAllowTearing();
+
+	gCommandManager.Create(context.GetDevice()->GetD3DDevice());
 
 	commandQueue = createCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 	if (!commandQueue) return false;
@@ -45,7 +34,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	// Create descriptor heaps for render target views and depth stencil views.
 	rtvDescriptorHeap = createDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, MAX_BACK_BUFFER_COUNT);
 	if (!rtvDescriptorHeap) return false;
-	rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	rtvDescriptorSize = GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	if (depthBufferFormat != DXGI_FORMAT_UNKNOWN)
 	{
 		dsvDescriptorHeap = createDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
@@ -55,7 +44,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	// Create a command allocator for each back buffer that will be rendered to.
 	for (int i = 0; i < MAX_BACK_BUFFER_COUNT; ++i)
 	{
-		HRESULT result = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocators[i]));
+		HRESULT result = GetD3DDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocators[i]));
 		if (FAILED(result))
 		{
 			Fatal("ID3D12Device14::CreateCommandAllocator() failed: " + DXErrorToStr(result));
@@ -67,7 +56,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	}
 
 	// Create a command list for recording graphics commands.
-	HRESULT result = device->CreateCommandList1(0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&commandList));
+	HRESULT result = GetD3DDevice()->CreateCommandList1(0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&commandList));
 	if (FAILED(result))
 	{
 		Fatal("ID3D12Device14::CreateCommandList1() failed: " + DXErrorToStr(result));
@@ -75,7 +64,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	}
 
 	// Create a fence for tracking GPU execution progress.
-	result = device->CreateFence(fenceValues[currentBackBufferIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+	result = GetD3DDevice()->CreateFence(fenceValues[currentBackBufferIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
 	if (FAILED(result))
 	{
 		Fatal("ID3D12Device14::CreateFence() failed: " + DXErrorToStr(result));
@@ -99,6 +88,8 @@ void RHIBackend::DestroyAPI()
 {
 	WaitForGpu();
 
+	gCommandManager.Shutdown();
+
 	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
 	{
 		fenceValues[i] = 0;
@@ -119,17 +110,8 @@ void RHIBackend::DestroyAPI()
 	frameBufferHeight = 0;
 
 	swapChain.Reset();
-	allocator.Reset();
-	device.Reset();
-	adapter.Reset();
 
-#if defined(_DEBUG)
-	ComPtr<IDXGIDebug1> debug;
-	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&debug))))
-	{
-		debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_SUMMARY | DXGI_DEBUG_RLO_DETAIL | DXGI_DEBUG_RLO_IGNORE_INTERNAL));
-	}
-#endif
+	context.Destroy();
 }
 //=============================================================================
 void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
@@ -222,7 +204,6 @@ void RHIBackend::Present(D3D12_RESOURCE_STATES beforeState)
 	if (FAILED(result))
 	{
 		Fatal("IDXGISwapChain4::Present() failed: " + DXErrorToStr(result));
-		return;
 	}
 
 	moveToNextFrame();
@@ -260,203 +241,8 @@ bool RHIBackend::setSize(uint32_t width, uint32_t height)
 	return true;
 }
 //=============================================================================
-void RHIBackend::enableDebugLayer(const RenderSystemCreateInfo& createInfo)
-{
-#if RHI_VALIDATION_ENABLED
-	ComPtr<IDXGIInfoQueue> dxgiInfoQueue;
-	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiInfoQueue))))
-	{
-		dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
-		dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
-
-		DXGI_INFO_QUEUE_MESSAGE_ID hide[] =
-		{
-			80 /* IDXGISwapChain::GetContainingOutput: The swapchain's adapter does not control the output on which the swapchain's window resides. */,
-		};
-		DXGI_INFO_QUEUE_FILTER filter = {};
-		filter.DenyList.NumIDs = static_cast<UINT>(std::size(hide));
-		filter.DenyList.pIDList = hide;
-		dxgiInfoQueue->AddStorageFilterEntries(DXGI_DEBUG_DXGI, &filter);
-	}
-
-	ComPtr<ID3D12Debug> debugController;
-	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
-	{
-		debugController->EnableDebugLayer();
-		Print("Direct3D 12 Enable Debug Layer");
-	}
-	else
-	{
-		Warning("Direct3D Debug Device is not available");
-		return;
-	}
-
-	ComPtr<ID3D12Debug1> debugController1;
-	if (FAILED(debugController.As(&debugController1))) return;
-	if (createInfo.debug.enableGPUBasedValidation)
-	{
-		debugController1->SetEnableGPUBasedValidation(TRUE);
-		Print("Direct3D 12 Enable Debug GPU Based Validation");
-	}
-	if (createInfo.debug.enableSynchronizedCommandQueueValidation)
-	{
-		debugController1->SetEnableSynchronizedCommandQueueValidation(TRUE);
-		Print("Direct3D 12 Enable Debug Synchronized Command Queue Validation");
-	}
-
-	ComPtr<ID3D12Debug5> debugController5;
-	if (FAILED(debugController1.As(&debugController5))) return;
-	if (createInfo.debug.enableAutoName)
-	{
-		debugController5->SetEnableAutoName(TRUE);
-		Print("Direct3D 12 Enable Debug Auto Name");
-	}
-#endif // RHI_VALIDATION_ENABLED
-}
-//=============================================================================
-bool RHIBackend::selectAdapter(const RenderSystemCreateInfo& createInfo)
-{
-	UINT dxgiFactoryFlags = 0;
-#if RHI_VALIDATION_ENABLED
-	dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-#endif // RHI_VALIDATION_ENABLED
-
-	ComPtr<IDXGIFactory> DXGIFactory;
-	HRESULT result = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&DXGIFactory));
-	if (FAILED(result))
-	{
-		Fatal("CreateDXGIFactory2() failed: " + DXErrorToStr(result));
-		return false;
-	}
-	ComPtr<IDXGIFactory7> DXGIFactory7;
-	result = DXGIFactory.As(&DXGIFactory7);
-	if (FAILED(result))
-	{
-		Fatal("IDXGIFactory As IDXGIFactory7 failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	{
-		// при отключении vsync на экране могут быть разрывы
-		BOOL allowTearing = FALSE;
-		if (FAILED(DXGIFactory7->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
-			supportFeatures.allowTearing = false;
-		else
-			supportFeatures.allowTearing = (allowTearing == TRUE);
-	}
-
-	ComPtr<IDXGIAdapter> DXGIAdapter;
-	if (createInfo.useWarp)
-	{
-		result = DXGIFactory7->EnumWarpAdapter(IID_PPV_ARGS(&DXGIAdapter));
-		if (FAILED(result))
-		{
-			Fatal("IDXGIFactory7::EnumWarpAdapter() failed: " + DXErrorToStr(result));
-			return false;
-		}
-	}
-	else
-	{
-		result = DXGIFactory7->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&DXGIAdapter));
-		if (FAILED(result))
-		{
-			Fatal("IDXGIFactory7::EnumAdapterByGpuPreference() failed: " + DXErrorToStr(result));
-			return false;
-		}
-	}
-	result = DXGIAdapter.As(&adapter);
-	if (FAILED(result))
-	{
-		Fatal("DXGIAdapter As DXGIAdapter4 failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	return true;
-}
-//=============================================================================
-bool RHIBackend::createDevice()
-{
-	const D3D_FEATURE_LEVEL featureLevels[] = {
-			D3D_FEATURE_LEVEL_12_2,
-			D3D_FEATURE_LEVEL_12_1,
-			D3D_FEATURE_LEVEL_12_0,
-			D3D_FEATURE_LEVEL_11_1,
-			D3D_FEATURE_LEVEL_11_0,
-	};
-	HRESULT result{};
-	for (auto& featureLevel : featureLevels)
-	{
-
-		result = D3D12CreateDevice(adapter.Get(), featureLevel, IID_PPV_ARGS(&device));
-		if (SUCCEEDED(result))
-		{
-			Print("Direct3D 12 Feature Level: " + ConvertToStr(featureLevel));
-			break;
-		}
-	}
-	if (FAILED(result))
-	{
-		Fatal("D3D12CreateDevice() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	device->SetName(L"MiniEngine");
-
-#if RHI_VALIDATION_ENABLED
-	ComPtr<ID3D12InfoQueue1> d3dInfoQueue;
-	if (SUCCEEDED(device.As(&d3dInfoQueue)))
-	{
-		d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
-		d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
-		//d3dInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, true);
-
-		D3D12_MESSAGE_ID filteredMessages[] = {
-			//D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,
-			//D3D12_MESSAGE_ID_CLEARDEPTHSTENCILVIEW_MISMATCHINGCLEARVALUE,
-			D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE, // This warning occurs when using capture frame while graphics debugging.
-			D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE,
-			D3D12_MESSAGE_ID_EXECUTECOMMANDLISTS_WRONGSWAPCHAINBUFFERREFERENCE,
-			D3D12_MESSAGE_ID_RESOURCE_BARRIER_MISMATCHING_COMMAND_LIST_TYPE
-		};
-		D3D12_INFO_QUEUE_FILTER filter = {};
-		filter.DenyList.NumIDs = static_cast<UINT>(std::size(filteredMessages));
-		filter.DenyList.pIDList = filteredMessages;
-		d3dInfoQueue->AddStorageFilterEntries(&filter);
-
-		d3dInfoQueue->RegisterMessageCallback(D3D12MessageCallbackFunc, D3D12_MESSAGE_CALLBACK_FLAG_NONE, nullptr, nullptr);
-	}
-#endif // RHI_VALIDATION_ENABLED
-
-	return true;
-}
-//=============================================================================
-bool RHIBackend::createAllocator()
-{
-	D3D12MA::ALLOCATOR_DESC desc = {};
-	desc.Flags = D3D12MA::ALLOCATOR_FLAG_NONE;
-	desc.pDevice = device.Get();
-	desc.pAdapter = adapter.Get();
-
-	HRESULT result = D3D12MA::CreateAllocator(&desc, &allocator);
-	if (FAILED(result))
-	{
-		Fatal("CreateAllocator() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	return true;
-}
-//=============================================================================
 bool RHIBackend::createSwapChain(const WindowData& wndData)
 {
-	ComPtr<IDXGIFactory2> DXGIFactory;
-	HRESULT result = adapter->GetParent(IID_PPV_ARGS(&DXGIFactory));
-	if (FAILED(result))
-	{
-		Fatal("IDXGIAdapter4::GetParent() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
 	swapChainDesc.Width                 = wndData.width;
 	swapChainDesc.Height                = wndData.height;
@@ -474,14 +260,14 @@ bool RHIBackend::createSwapChain(const WindowData& wndData)
 	fsSwapChainDesc.Windowed = TRUE;
 
 	ComPtr<IDXGISwapChain1> swapChain1;
-	result = DXGIFactory->CreateSwapChainForHwnd(commandQueue.Get(), wndData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
+	HRESULT result = context.GetFactory()->CreateSwapChainForHwnd(commandQueue.Get(), wndData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
 		return false;
 	}
 
-	result = DXGIFactory->MakeWindowAssociation(wndData.hwnd, DXGI_MWA_NO_ALT_ENTER);
+	result = context.GetFactory()->MakeWindowAssociation(wndData.hwnd, DXGI_MWA_NO_ALT_ENTER);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::MakeWindowAssociation() failed: " + DXErrorToStr(result));
@@ -531,7 +317,7 @@ bool RHIBackend::updateRenderTargetViews()
 
 		const auto cpuHandle = rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 		const CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescriptor(cpuHandle, static_cast<INT>(i), rtvDescriptorSize);
-		device->CreateRenderTargetView(backBuffers[i].Get(), &rtvDesc, rtvDescriptor);
+		GetD3DDevice()->CreateRenderTargetView(backBuffers[i].Get(), &rtvDesc, rtvDescriptor);
 	}
 
 	// Reset the index to the current back buffer.
@@ -549,7 +335,7 @@ bool RHIBackend::updateRenderTargetViews()
 
 		const CD3DX12_CLEAR_VALUE depthOptimizedClearValue(depthBufferFormat, 1.0f, 0u);
 
-		HRESULT result = device->CreateCommittedResource(
+		HRESULT result = GetD3DDevice()->CreateCommittedResource(
 			&depthHeapProperties,
 			D3D12_HEAP_FLAG_NONE,
 			&depthStencilDesc,
@@ -570,7 +356,7 @@ bool RHIBackend::updateRenderTargetViews()
 		dsvDesc.ViewDimension                 = D3D12_DSV_DIMENSION_TEXTURE2D;
 
 		const auto cpuHandle = dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		device->CreateDepthStencilView(depthStencil.Get(), &dsvDesc, cpuHandle);
+		GetD3DDevice()->CreateDepthStencilView(depthStencil.Get(), &dsvDesc, cpuHandle);
 	}
 
 	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
@@ -595,7 +381,7 @@ ComPtr<ID3D12CommandQueue> RHIBackend::createCommandQueue(D3D12_COMMAND_LIST_TYP
 	queueDesc.Flags                    = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	queueDesc.NodeMask                 = 0;
 	ComPtr<ID3D12CommandQueue> d3d12CommandQueue;
-	HRESULT result = device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&d3d12CommandQueue));
+	HRESULT result = GetD3DDevice()->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&d3d12CommandQueue));
 	if (FAILED(result))
 	{
 		Fatal("ID3D12Device14::CreateCommandQueue() failed: " + DXErrorToStr(result));
@@ -613,7 +399,7 @@ ComPtr<ID3D12DescriptorHeap> RHIBackend::createDescriptorHeap(D3D12_DESCRIPTOR_H
 	desc.NodeMask                   = 0;
 
 	ComPtr<ID3D12DescriptorHeap> descriptorHeap;
-	HRESULT result = device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap));
+	HRESULT result = GetD3DDevice()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap));
 	if (FAILED(result))
 	{
 		Fatal("ID3D12Device14::CreateDescriptorHeap() failed: " + DXErrorToStr(result));

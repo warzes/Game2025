@@ -107,8 +107,11 @@
     <ClInclude Include="000_oRender_Clear.h" />
     <ClInclude Include="000_Render_Clear.h" />
     <ClInclude Include="001_oRender_TriangleBindless.h" />
+    <ClInclude Include="002_Render_TextureTriangle.h" />
     <ClInclude Include="001_Render_Triangle.h" />
     <ClInclude Include="002_oRender_RotateCubeBindless.h" />
+    <ClInclude Include="003_Render_TriangleBundles.h" />
+    <ClInclude Include="004_Render_TriangleCB.h" />
     <ClInclude Include="GameConfig.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>

@@ -99,12 +99,10 @@ void EngineApp::BeginFrame()
 	m_input.Update();
 
 	m_render.Resize(m_window.GetWidth(), m_window.GetHeight());
-	m_render.BeginFrame();
 }
 //=============================================================================
 void EngineApp::EndFrame()
 {
 	if (IsShouldClose()) return;
-	m_render.EndFrame();
 }
 //=============================================================================

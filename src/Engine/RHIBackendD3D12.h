@@ -3,6 +3,7 @@
 #if RENDER_D3D12
 
 #include "RHICoreD3D12.h"
+#include "ContextD3D12.h"
 
 struct WindowData;
 struct RenderSystemCreateInfo;
@@ -10,8 +11,6 @@ struct RenderSystemCreateInfo;
 class RHIBackend final
 {
 public:
-	~RHIBackend();
-
 	[[nodiscard]] bool CreateAPI(const WindowData& wndData, const RenderSystemCreateInfo& createInfo);
 	void DestroyAPI();
 
@@ -26,7 +25,7 @@ public:
 
 	void WaitForGpu();
 
-	auto GetD3DDevice() const noexcept { return device.Get(); }
+	auto GetD3DDevice() const noexcept { return context.GetDevice()->GetD3DDevice(); }
 	auto GetCommandQueue() const noexcept { return commandQueue.Get(); }
 	auto GetCommandList() const noexcept { return commandList.Get(); }
 	auto GetCurrentCommandAllocator() const noexcept { return commandAllocators[currentBackBufferIndex].Get(); }
@@ -53,9 +52,9 @@ public:
 	}
 
 	RenderFeatures                      supportFeatures{};
-	ComPtr<IDXGIAdapter4>               adapter;
-	ComPtr<ID3D12Device14>              device;
-	ComPtr<D3D12MA::Allocator>          allocator;
+	ContextD3D12                        context;
+
+
 
 	ComPtr<ID3D12CommandQueue>          commandQueue;
 	ComPtr<ID3D12GraphicsCommandList10> commandList;
@@ -84,10 +83,6 @@ public:
 
 private:
 	bool setSize(uint32_t width, uint32_t height);
-	void enableDebugLayer(const RenderSystemCreateInfo& createInfo);
-	bool selectAdapter(const RenderSystemCreateInfo& createInfo);
-	bool createDevice();
-	bool createAllocator();
 	bool createSwapChain(const WindowData& wndData);
 	bool updateRenderTargetViews();
 

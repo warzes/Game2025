@@ -6,8 +6,6 @@ void ExampleRender000()
 	EngineApp engine;
 	if (engine.Create(engineAppCreateInfo))
 	{
-		auto& rhi = engine.GetRenderSystem();
-
 		while (!engine.IsShouldClose())
 		{
 			engine.BeginFrame();

@@ -1,8 +1,7 @@
 ﻿#pragma once
 
-struct RenderSystemCreateInfo final
+struct ContextCreateInfo final
 {
-	bool vsync{ false };
 #if RENDER_D3D12
 	bool useWarp{ false };
 
@@ -13,6 +12,13 @@ struct RenderSystemCreateInfo final
 		bool enableAutoName{ true };
 	} debug;
 #endif
+};
+
+struct RenderSystemCreateInfo final
+{
+	ContextCreateInfo context;
+
+	bool vsync{ false };
 };
 
 inline uint32_t GetGroupCount(uint32_t threadCount, uint32_t groupSize)

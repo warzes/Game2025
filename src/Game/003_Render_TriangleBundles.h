@@ -2,7 +2,7 @@
 
 using namespace DirectX;
 
-void ExampleRender001()
+void ExampleRender003()
 {
 	EngineAppCreateInfo engineAppCreateInfo{};
 	EngineApp engine;
@@ -16,10 +16,14 @@ void ExampleRender001()
 			XMFLOAT4 color;
 		};
 
-		ComPtr<ID3D12RootSignature> rootSignature;
-		ComPtr<ID3D12PipelineState> pipelineState;
-		ComPtr<ID3D12Resource>      vertexBuffer;
-		D3D12_VERTEX_BUFFER_VIEW    vertexBufferView;
+		ComPtr<ID3D12CommandAllocator>    bundleAllocator;
+		ComPtr<ID3D12RootSignature>       rootSignature;
+		ComPtr<ID3D12PipelineState>       pipelineState;
+		ComPtr<ID3D12GraphicsCommandList> bundle;
+		ComPtr<ID3D12Resource>            vertexBuffer;
+		D3D12_VERTEX_BUFFER_VIEW          vertexBufferView;
+
+		gRHI.GetD3DDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE, IID_PPV_ARGS(&bundleAllocator));
 
 		// Create an empty root signature.
 		{
@@ -44,8 +48,8 @@ void ExampleRender001()
 			UINT compileFlags = 0;
 #endif
 
-			D3DCompileFromFile(L"Data/Shaders/001_Render_Triangle.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr);
-			D3DCompileFromFile(L"Data/Shaders/001_Render_Triangle.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr);
+			D3DCompileFromFile(L"Data/Shaders/003_Render_TriangleBundles.hlsl", nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr);
+			D3DCompileFromFile(L"Data/Shaders/003_Render_TriangleBundles.hlsl", nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr);
 
 			// Define the vertex input layout.
 			D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
@@ -112,6 +116,18 @@ void ExampleRender001()
 			vertexBufferView.SizeInBytes = vertexBufferSize;
 		}
 
+		// Create and record the bundle.
+		{
+			gRHI.GetD3DDevice()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE, bundleAllocator.Get(), pipelineState.Get(), IID_PPV_ARGS(&bundle));
+			bundle->SetGraphicsRootSignature(rootSignature.Get());
+			bundle->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			bundle->IASetVertexBuffers(0, 1, &vertexBufferView);
+			bundle->DrawInstanced(3, 1, 0, 0);
+			bundle->Close();
+		}
+
+		gRHI.WaitForGpu();
+
 		while (!engine.IsShouldClose())
 		{
 			engine.BeginFrame();
@@ -150,11 +166,11 @@ void ExampleRender001()
 
 				PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Render");
 				{
-					commandList->SetGraphicsRootSignature(rootSignature.Get());
 					commandList->SetPipelineState(pipelineState.Get());
-					commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-					commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
-					commandList->DrawInstanced(3, 1, 0, 0);
+					commandList->SetGraphicsRootSignature(rootSignature.Get());
+
+					// Execute the commands stored in the bundle.
+					commandList->ExecuteBundle(bundle.Get());
 				}
 				PIXEndEvent(commandList);
 
@@ -166,6 +182,8 @@ void ExampleRender001()
 			engine.EndFrame();
 		}
 
+		bundleAllocator.Reset();
+		bundle.Reset();
 		rootSignature.Reset();
 		pipelineState.Reset();
 		vertexBuffer.Reset();
