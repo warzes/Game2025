@@ -45,9 +45,9 @@ public:
 	ComPtr<ID3D12Device14>       device{ nullptr };
 	ComPtr<D3D12MA::Allocator>   allocator{ nullptr };
 
-	CommandQueueD3D12*           graphicsQueue{ nullptr };
-	CommandQueueD3D12*           computeQueue{ nullptr };
-	CommandQueueD3D12*           copyQueue{ nullptr };
+	oCommandQueueD3D12*           graphicsQueue{ nullptr };
+	oCommandQueueD3D12*           computeQueue{ nullptr };
+	oCommandQueueD3D12*           copyQueue{ nullptr };
 
 	StagingDescriptorHeap*       RTVStagingDescriptorHeap{ nullptr };
 	StagingDescriptorHeap*       DSVStagingDescriptorHeap{ nullptr };

@@ -4,6 +4,7 @@
 
 #include "RHICoreD3D12.h"
 #include "ContextD3D12.h"
+#include "DescriptorHeapD3D12.h"
 
 struct WindowData;
 struct RenderSystemCreateInfo;
@@ -30,8 +31,6 @@ public:
 	auto GetCommandList() const noexcept { return commandList.Get(); }
 	auto GetCurrentCommandAllocator() const noexcept { return commandAllocators[currentBackBufferIndex].Get(); }
 	auto GetSwapChain() const noexcept { return swapChain.Get(); }
-	auto GetCurrentBackBuffer() const noexcept { return backBuffers[currentBackBufferIndex].Get(); }
-	auto GetDepthStencil() const noexcept { return depthStencil.Get(); }
 	auto GetScreenViewport() const noexcept { return screenViewport; }
 	auto GetScissorRect() const noexcept { return scissorRect; }
 	auto GetCurrentFrameIndex() const noexcept { return currentBackBufferIndex; }
@@ -41,20 +40,16 @@ public:
 
 	auto GetRenderTargetView() const noexcept
 	{
-		const auto cpuHandle = rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		return CD3DX12_CPU_DESCRIPTOR_HANDLE(cpuHandle, static_cast<INT>(currentBackBufferIndex), rtvDescriptorSize);
+		return backBuffers[currentBackBufferIndex].Descriptor.CPUHandle;
 	}
 
 	auto GetDepthStencilView() const noexcept
 	{
-		const auto cpuHandle = dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		return CD3DX12_CPU_DESCRIPTOR_HANDLE(cpuHandle);
+		return depthStencil.Descriptor.CPUHandle;
 	}
 
 	RenderFeatures                      supportFeatures{};
 	ContextD3D12                        context;
-
-
 
 	ComPtr<ID3D12CommandQueue>          commandQueue;
 	ComPtr<ID3D12GraphicsCommandList10> commandList;
@@ -65,12 +60,13 @@ public:
 	uint64_t                            fenceValues[MAX_BACK_BUFFER_COUNT] = {};
 	Microsoft::WRL::Wrappers::Event     fenceEvent;
 
+	StagingDescriptorHeapD3D12*         RTVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeapD3D12*         DSVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeapD3D12*         CBVSRVUAVStagingDescriptorHeap{ nullptr };
+
 	ComPtr<IDXGISwapChain4>             swapChain;
-	ComPtr<ID3D12Resource>              backBuffers[MAX_BACK_BUFFER_COUNT];
-	ComPtr<ID3D12Resource>              depthStencil;
-	ComPtr<ID3D12DescriptorHeap>        rtvDescriptorHeap;
-	ComPtr<ID3D12DescriptorHeap>        dsvDescriptorHeap;
-	UINT                                rtvDescriptorSize{ 0 }; // размер одного дескриптора
+	TextureResourceD3D12                backBuffers[MAX_BACK_BUFFER_COUNT];
+	TextureResourceD3D12                depthStencil;
 	D3D12_VIEWPORT                      screenViewport{};
 	D3D12_RECT                          scissorRect{};
 	UINT                                currentBackBufferIndex{ 0 };
@@ -83,11 +79,11 @@ public:
 
 private:
 	bool setSize(uint32_t width, uint32_t height);
+	bool createDescriptorHeap();
 	bool createSwapChain(const WindowData& wndData);
 	bool updateRenderTargetViews();
 
 	ComPtr<ID3D12CommandQueue> createCommandQueue(D3D12_COMMAND_LIST_TYPE type);
-	ComPtr<ID3D12DescriptorHeap> createDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t numDescriptors);
 
 	void moveToNextFrame();
 };

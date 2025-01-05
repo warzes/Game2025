@@ -26,17 +26,8 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	commandQueue = createCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 	if (!commandQueue) return false;
 
-	if (!createSwapChain(wndData))  return false;
-
-	// Create descriptor heaps for render target views and depth stencil views.
-	rtvDescriptorHeap = createDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, MAX_BACK_BUFFER_COUNT);
-	if (!rtvDescriptorHeap) return false;
-	rtvDescriptorSize = GetD3DDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	if (depthBufferFormat != DXGI_FORMAT_UNKNOWN)
-	{
-		dsvDescriptorHeap = createDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
-		if (!dsvDescriptorHeap) return false;
-	}
+	if (!createDescriptorHeap()) return false;
+	if (!createSwapChain(wndData)) return false;
 
 	// Create a command allocator for each back buffer that will be rendered to.
 	for (int i = 0; i < MAX_BACK_BUFFER_COUNT; ++i)
@@ -89,17 +80,20 @@ void RHIBackend::DestroyAPI()
 	{
 		fenceValues[i] = 0;
 		commandAllocators[i].Reset();
-		backBuffers[i].Reset();
+		if (RTVStagingDescriptorHeap) RTVStagingDescriptorHeap->FreeDescriptor(backBuffers[i].Descriptor);
+		backBuffers[i].Destroy();
 	}
 	commandList.Reset();
 	commandQueue.Reset();
 	fence.Reset();
 	fenceEvent.Close();
-	depthStencil.Reset();
-	rtvDescriptorHeap.Reset();
-	dsvDescriptorHeap.Reset();
+	if (DSVStagingDescriptorHeap) DSVStagingDescriptorHeap->FreeDescriptor(depthStencil.Descriptor);
+	depthStencil.Destroy();
 
-	rtvDescriptorSize = 0;
+	delete RTVStagingDescriptorHeap; RTVStagingDescriptorHeap = nullptr;
+	delete DSVStagingDescriptorHeap; DSVStagingDescriptorHeap = nullptr;
+	delete CBVSRVUAVStagingDescriptorHeap; CBVSRVUAVStagingDescriptorHeap = nullptr;
+
 	currentBackBufferIndex = 0;
 	frameBufferWidth = 0;
 	frameBufferHeight = 0;
@@ -125,8 +119,11 @@ void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 
 	for (UINT n = 0; n < MAX_BACK_BUFFER_COUNT; n++)
 	{
-		backBuffers[n].Reset();
+		if (RTVStagingDescriptorHeap) RTVStagingDescriptorHeap->FreeDescriptor(backBuffers[n].Descriptor);
+		backBuffers[n].Destroy();
 	}
+	if (DSVStagingDescriptorHeap) DSVStagingDescriptorHeap->FreeDescriptor(depthStencil.Descriptor);
+	depthStencil.Destroy();
 
 	result = swapChain->ResizeBuffers(MAX_BACK_BUFFER_COUNT, frameBufferWidth, frameBufferHeight, swapChainDesc.BufferDesc.Format, swapChainDesc.Flags);
 	if (FAILED(result))
@@ -134,7 +131,9 @@ void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 		Fatal("IDXGISwapChain4::ResizeBuffers() failed: " + DXErrorToStr(result));
 		return;
 	}
-	if (!updateRenderTargetViews()) return;
+	updateRenderTargetViews();
+
+	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
 }
 //=============================================================================
 void RHIBackend::BeginFrame()
@@ -164,12 +163,10 @@ void RHIBackend::Prepare(D3D12_RESOURCE_STATES beforeState, D3D12_RESOURCE_STATE
 
 	if (beforeState != afterState)
 	{
-		// Transition the render target into the correct state to allow for drawing into it.
-		const D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-			backBuffers[currentBackBufferIndex].Get(),
+		const D3D12_RESOURCE_BARRIER barrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(
+			backBuffers[currentBackBufferIndex].resource.Get(),
 			beforeState, afterState);
-		// TODO: по хорошему нужно собрать все барьеры и применить их за раз
-		commandList->ResourceBarrier(1, &barrier);
+		commandList->ResourceBarrier(1, &barrierRTV);
 	}
 }
 //=============================================================================
@@ -178,10 +175,10 @@ void RHIBackend::Present(D3D12_RESOURCE_STATES beforeState)
 	if (beforeState != D3D12_RESOURCE_STATE_PRESENT)
 	{
 		// Transition the render target to the state that allows it to be presented to the display.
-		const D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-			backBuffers[currentBackBufferIndex].Get(),
+		const D3D12_RESOURCE_BARRIER barrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(
+			backBuffers[currentBackBufferIndex].resource.Get(),
 			beforeState, D3D12_RESOURCE_STATE_PRESENT);
-		commandList->ResourceBarrier(1, &barrier);
+		commandList->ResourceBarrier(1, &barrierRTV);
 	}
 
 	// Send the command list off to the GPU for processing.
@@ -236,6 +233,29 @@ bool RHIBackend::setSize(uint32_t width, uint32_t height)
 	return true;
 }
 //=============================================================================
+bool RHIBackend::createDescriptorHeap()
+{
+	RTVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_RTV_STAGING_DESCRIPTORS);
+	if (IsRequestExit())
+	{
+		Fatal("Create RTVStagingDescriptorHeap failed.");
+		return false;
+	}
+	DSVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, NUM_DSV_STAGING_DESCRIPTORS);
+	if (IsRequestExit())
+	{
+		Fatal("Create DSVStagingDescriptorHeap failed.");
+		return false;
+	}
+	CBVSRVUAVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_SRV_STAGING_DESCRIPTORS);
+	if (IsRequestExit())
+	{
+		Fatal("Create CBVSRVUAVStagingDescriptorHeap failed.");
+		return false;
+	}
+	return true;
+}
+//=============================================================================
 bool RHIBackend::createSwapChain(const WindowData& wndData)
 {
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
@@ -283,19 +303,10 @@ bool RHIBackend::createSwapChain(const WindowData& wndData)
 //=============================================================================
 bool RHIBackend::updateRenderTargetViews()
 {
-	// Wait until all previous GPU work is complete.
-	WaitForGpu();
-
-	// Release resources that are tied to the swap chain and update fence values.
-	for (UINT n = 0; n < MAX_BACK_BUFFER_COUNT; n++)
+	for (uint32_t bufferIndex = 0; bufferIndex < MAX_BACK_BUFFER_COUNT; bufferIndex++)
 	{
-		fenceValues[n] = fenceValues[currentBackBufferIndex];
-	}
-
-	// Obtain the back buffers for this window which will be the final render targets and create render target views for each of them.
-	for (uint32_t i = 0; i < MAX_BACK_BUFFER_COUNT; ++i)
-	{
-		HRESULT result = swapChain->GetBuffer(i, IID_PPV_ARGS(backBuffers[i].ReleaseAndGetAddressOf()));
+		ComPtr<ID3D12Resource> backBufferResource;
+		HRESULT result = swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&backBufferResource));
 		if (FAILED(result))
 		{
 			Fatal("IDXGISwapChain4::GetBuffer() failed: " + DXErrorToStr(result));
@@ -303,20 +314,22 @@ bool RHIBackend::updateRenderTargetViews()
 		}
 
 		wchar_t name[25] = {};
-		swprintf_s(name, L"Render target %u", i);
-		backBuffers[i]->SetName(name);
+		swprintf_s(name, L"Render target %u", bufferIndex);
+		backBufferResource->SetName(name);
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-		rtvDesc.Format                        = backBufferFormat;
+		rtvDesc.Format                        = backBufferFormat; // TODO: DXGI_FORMAT_R8G8B8A8_UNORM_SRGB ???
 		rtvDesc.ViewDimension                 = D3D12_RTV_DIMENSION_TEXTURE2D;
 
-		const auto cpuHandle = rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		const CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescriptor(cpuHandle, static_cast<INT>(i), rtvDescriptorSize);
-		GetD3DDevice()->CreateRenderTargetView(backBuffers[i].Get(), &rtvDesc, rtvDescriptor);
-	}
+		DescriptorD3D12 backBufferRTVHandle = RTVStagingDescriptorHeap->GetNewDescriptor();
 
-	// Reset the index to the current back buffer.
-	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
+		GetD3DDevice()->CreateRenderTargetView(backBufferResource.Get(), &rtvDesc, backBufferRTVHandle.CPUHandle);
+
+		backBuffers[bufferIndex] = {};
+		backBuffers[bufferIndex].resource = backBufferResource;
+		backBuffers[bufferIndex].state = D3D12_RESOURCE_STATE_PRESENT;
+		backBuffers[bufferIndex].Descriptor = backBufferRTVHandle;
+	}
 
 	if (depthBufferFormat != DXGI_FORMAT_UNKNOWN)
 	{
@@ -330,13 +343,14 @@ bool RHIBackend::updateRenderTargetViews()
 
 		const CD3DX12_CLEAR_VALUE depthOptimizedClearValue(depthBufferFormat, 1.0f, 0u);
 
+		ComPtr<ID3D12Resource> depthStencilResource;
 		HRESULT result = GetD3DDevice()->CreateCommittedResource(
 			&depthHeapProperties,
 			D3D12_HEAP_FLAG_NONE,
 			&depthStencilDesc,
 			D3D12_RESOURCE_STATE_DEPTH_WRITE,
 			&depthOptimizedClearValue,
-			IID_PPV_ARGS(depthStencil.ReleaseAndGetAddressOf())
+			IID_PPV_ARGS(depthStencilResource.ReleaseAndGetAddressOf())
 		);
 		if (FAILED(result))
 		{
@@ -344,14 +358,20 @@ bool RHIBackend::updateRenderTargetViews()
 			return false;
 		}
 
-		depthStencil->SetName(L"Depth stencil");
+		depthStencilResource->SetName(L"Depth stencil");
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
 		dsvDesc.Format                        = depthBufferFormat;
 		dsvDesc.ViewDimension                 = D3D12_DSV_DIMENSION_TEXTURE2D;
 
-		const auto cpuHandle = dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-		GetD3DDevice()->CreateDepthStencilView(depthStencil.Get(), &dsvDesc, cpuHandle);
+		auto DSVHandle = DSVStagingDescriptorHeap->GetNewDescriptor();
+
+		GetD3DDevice()->CreateDepthStencilView(depthStencilResource.Get(), &dsvDesc, DSVHandle.CPUHandle);
+
+		depthStencil = {};
+		depthStencil.resource = depthStencilResource;
+		depthStencil.state = D3D12_RESOURCE_STATE_PRESENT;
+		depthStencil.Descriptor = DSVHandle;
 	}
 
 	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
@@ -383,24 +403,6 @@ ComPtr<ID3D12CommandQueue> RHIBackend::createCommandQueue(D3D12_COMMAND_LIST_TYP
 		return nullptr;
 	}
 	return d3d12CommandQueue;
-}
-//=============================================================================
-ComPtr<ID3D12DescriptorHeap> RHIBackend::createDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t numDescriptors)
-{
-	D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-	desc.Type                       = type;
-	desc.NumDescriptors             = numDescriptors;
-	desc.Flags                      = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	desc.NodeMask                   = 0;
-
-	ComPtr<ID3D12DescriptorHeap> descriptorHeap;
-	HRESULT result = GetD3DDevice()->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap));
-	if (FAILED(result))
-	{
-		Fatal("ID3D12Device14::CreateDescriptorHeap() failed: " + DXErrorToStr(result));
-		return nullptr;
-	}
-	return descriptorHeap;
 }
 //=============================================================================
 void RHIBackend::moveToNextFrame()

@@ -59,6 +59,9 @@
     <ClCompile Include="ContextD3D12.cpp">
       <Filter>RHI\Direct3D12\Low</Filter>
     </ClCompile>
+    <ClCompile Include="DescriptorHeapD3D12.cpp">
+      <Filter>RHI\Direct3D12\Low</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -141,6 +144,9 @@
       <Filter>RHI\Direct3D12</Filter>
     </ClInclude>
     <ClInclude Include="ContextD3D12.h">
+      <Filter>RHI\Direct3D12\Low</Filter>
+    </ClInclude>
+    <ClInclude Include="DescriptorHeapD3D12.h">
       <Filter>RHI\Direct3D12\Low</Filter>
     </ClInclude>
   </ItemGroup>

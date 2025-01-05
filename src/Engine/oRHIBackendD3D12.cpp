@@ -416,19 +416,19 @@ bool oRHIBackend::createAllocator()
 //=============================================================================
 bool oRHIBackend::createCommandQueue()
 {
-	graphicsQueue = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_DIRECT);
+	graphicsQueue = new oCommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_DIRECT);
 	if (IsRequestExit())
 	{
 		Fatal("Create graphicsQueue failed.");
 		return false;
 	}
-	computeQueue = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COMPUTE);
+	computeQueue = new oCommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COMPUTE);
 	if (IsRequestExit())
 	{
 		Fatal("Create computeQueue failed.");
 		return false;
 	}
-	copyQueue = new CommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COPY);
+	copyQueue = new oCommandQueueD3D12(device, D3D12_COMMAND_LIST_TYPE_COPY);
 	if (IsRequestExit())
 	{
 		Fatal("Create copyQueue failed.");
@@ -439,19 +439,19 @@ bool oRHIBackend::createCommandQueue()
 //=============================================================================
 bool oRHIBackend::createDescriptorHeap()
 {
-	RTVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_RTV_STAGING_DESCRIPTORS);
+	RTVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, oNUM_RTV_STAGING_DESCRIPTORS);
 	if (IsRequestExit())
 	{
 		Fatal("Create RTVStagingDescriptorHeap failed.");
 		return false;
 	}
-	DSVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, NUM_DSV_STAGING_DESCRIPTORS);
+	DSVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, oNUM_DSV_STAGING_DESCRIPTORS);
 	if (IsRequestExit())
 	{
 		Fatal("Create DSVStagingDescriptorHeap failed.");
 		return false;
 	}
-	CBVSRVUAVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_SRV_STAGING_DESCRIPTORS);
+	CBVSRVUAVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, oNUM_SRV_STAGING_DESCRIPTORS);
 	if (IsRequestExit())
 	{
 		Fatal("Create CBVSRVUAVStagingDescriptorHeap failed.");
@@ -1261,7 +1261,7 @@ ContextSubmissionResult SubmitContextWork(CommandContextD3D12& context)
 void WaitOnContextWork(ContextSubmissionResult submission, ContextWaitType waitType)
 {
 	std::pair<uint64_t, D3D12_COMMAND_LIST_TYPE> contextSubmission = ogRHI.contextSubmissions[submission.frameId][submission.submissionIndex];
-	CommandQueueD3D12* workSourceQueue = nullptr;
+	oCommandQueueD3D12* workSourceQueue = nullptr;
 
 	switch (contextSubmission.second)
 	{

@@ -2,16 +2,16 @@
 
 #if RENDER_D3D12
 
-class CommandQueueD3D12 final
+class oCommandQueueD3D12 final
 {
 public:
-	CommandQueueD3D12(ComPtr<ID3D12Device> device, D3D12_COMMAND_LIST_TYPE commandType);
-	~CommandQueueD3D12();
+	oCommandQueueD3D12(ComPtr<ID3D12Device> device, D3D12_COMMAND_LIST_TYPE commandType);
+	~oCommandQueueD3D12();
 
 	bool IsFenceComplete(uint64_t fenceValue);
 	void InsertWait(uint64_t fenceValue);
-	void InsertWaitForQueueFence(CommandQueueD3D12* otherQueue, uint64_t fenceValue);
-	void InsertWaitForQueue(CommandQueueD3D12* otherQueue);
+	void InsertWaitForQueueFence(oCommandQueueD3D12* otherQueue, uint64_t fenceValue);
+	void InsertWaitForQueue(oCommandQueueD3D12* otherQueue);
 	void WaitForFenceCPUBlocking(uint64_t fenceValue);
 	void WaitForIdle();
 

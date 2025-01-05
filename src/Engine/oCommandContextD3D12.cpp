@@ -265,7 +265,7 @@ void GraphicsCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const P
 
 	for (auto& uav : uavs)
 	{
-		if (uav.resource->type == GPUResourceType::buffer)
+		if (uav.resource->type == oGPUResourceType::buffer)
 		{
 			handles[currentHandleIndex++] = static_cast<BufferResource*>(uav.resource)->UAVDescriptor.CPUHandle;
 		}
@@ -277,7 +277,7 @@ void GraphicsCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const P
 
 	for (auto& srv : srvs)
 	{
-		if (srv.resource->type == GPUResourceType::buffer)
+		if (srv.resource->type == oGPUResourceType::buffer)
 		{
 			handles[currentHandleIndex++] = static_cast<BufferResource*>(srv.resource)->SRVDescriptor.CPUHandle;
 		}
@@ -425,7 +425,7 @@ void ComputeCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const Pi
 
 	for (auto& uav : uavs)
 	{
-		if (uav.resource->type == GPUResourceType::buffer)
+		if (uav.resource->type == oGPUResourceType::buffer)
 		{
 			handles[currentHandleIndex++] = static_cast<BufferResource*>(uav.resource)->UAVDescriptor.CPUHandle;
 		}
@@ -437,7 +437,7 @@ void ComputeCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const Pi
 
 	for (auto& srv : srvs)
 	{
-		if (srv.resource->type == GPUResourceType::buffer)
+		if (srv.resource->type == oGPUResourceType::buffer)
 		{
 			handles[currentHandleIndex++] = static_cast<BufferResource*>(srv.resource)->SRVDescriptor.CPUHandle;
 		}

@@ -23,14 +23,11 @@ void GameApp()
 			{
 				FLOAT clearColor[] = { 0.4f, 0.6f, 0.9f, 1.0f };
 
-				const CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+				const CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(backBuffer.resource.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 				gRHI.commandList->ResourceBarrier(1, &barrier);
 
-
-				const auto cpuHandle = gRHI.rtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-				const auto cpuHandleDSV = gRHI.dsvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-				const CD3DX12_CPU_DESCRIPTOR_HANDLE rtvDescriptor(cpuHandle, static_cast<INT>(gRHI.currentBackBufferIndex), gRHI.rtvDescriptorSize);
-				CD3DX12_CPU_DESCRIPTOR_HANDLE dsvDescriptor(cpuHandleDSV);
+				auto rtvDescriptor = backBuffer.Descriptor.CPUHandle;
+				auto dsvDescriptor = gRHI.depthStencil.Descriptor.CPUHandle;
 				gRHI.commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
 				gRHI.commandList->ClearRenderTargetView(rtvDescriptor, clearColor, 0, nullptr);
 				gRHI.commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);

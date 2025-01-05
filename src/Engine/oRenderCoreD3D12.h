@@ -5,9 +5,9 @@
 #include "RenderCore.h"
 
 constexpr uint32_t    NUM_FRAMES_IN_FLIGHT = 2;
-constexpr uint32_t    NUM_RTV_STAGING_DESCRIPTORS = 256;
-constexpr uint32_t    NUM_DSV_STAGING_DESCRIPTORS = 32;
-constexpr uint32_t    NUM_SRV_STAGING_DESCRIPTORS = 4096;
+constexpr uint32_t    oNUM_RTV_STAGING_DESCRIPTORS = 256;
+constexpr uint32_t    oNUM_DSV_STAGING_DESCRIPTORS = 32;
+constexpr uint32_t    oNUM_SRV_STAGING_DESCRIPTORS = 4096;
 constexpr uint32_t    NUM_SAMPLER_DESCRIPTORS = 6;
 constexpr uint32_t    MAX_QUEUED_BARRIERS = 16;
 constexpr uint8_t     PER_OBJECT_SPACE = 0;
@@ -17,7 +17,7 @@ constexpr uint8_t     PER_FRAME_SPACE = 3;
 constexpr uint8_t     NUM_RESOURCE_SPACES = 4;
 constexpr uint32_t    NUM_RESERVED_SRV_DESCRIPTORS = 8192;
 constexpr uint32_t    NUM_SRV_RENDER_PASS_USER_DESCRIPTORS = 65536;
-constexpr uint32_t    INVALID_RESOURCE_TABLE_INDEX = UINT_MAX;
+constexpr uint32_t    oINVALID_RESOURCE_TABLE_INDEX = UINT_MAX;
 constexpr uint32_t    MAX_TEXTURE_SUBRESOURCE_COUNT = 32;
 constexpr uint32_t    IMGUI_RESERVED_DESCRIPTOR_INDEX = 0;
 static const wchar_t* SHADER_SOURCE_PATH = L"Data/Shaders/";
@@ -26,7 +26,7 @@ static const char*    RESOURCE_PATH = "Data/Resources/";
 
 using SubResourceLayouts = std::array<D3D12_PLACED_SUBRESOURCE_FOOTPRINT, MAX_TEXTURE_SUBRESOURCE_COUNT>;
 
-enum class GPUResourceType : bool
+enum class oGPUResourceType : bool
 {
 	buffer = false,
 	texture = true
@@ -154,21 +154,21 @@ struct Descriptor final
 
 struct Resource
 {
-	GPUResourceType             type{ GPUResourceType::buffer };
+	oGPUResourceType             type{ oGPUResourceType::buffer };
 	D3D12_RESOURCE_DESC         desc{};
 	ComPtr<ID3D12Resource>      resource{ nullptr };
 	ComPtr<D3D12MA::Allocation> allocation{ nullptr };
 	D3D12_GPU_VIRTUAL_ADDRESS   virtualAddress{ 0 };
 	D3D12_RESOURCE_STATES       state{ D3D12_RESOURCE_STATE_COMMON };
 	bool                        isReady{ false };
-	uint32_t                    descriptorHeapIndex{ INVALID_RESOURCE_TABLE_INDEX };
+	uint32_t                    descriptorHeapIndex{ oINVALID_RESOURCE_TABLE_INDEX };
 };
 
 struct BufferResource final : public Resource
 {
 	BufferResource() : Resource()
 	{
-		type = GPUResourceType::buffer;
+		type = oGPUResourceType::buffer;
 	}
 
 	void SetMappedData(void* data, size_t dataSize)
@@ -188,7 +188,7 @@ struct TextureResource final : public Resource
 {
 	TextureResource() : Resource()
 	{
-		type = GPUResourceType::texture;
+		type = oGPUResourceType::texture;
 	}
 
 	Descriptor RTVDescriptor{};
