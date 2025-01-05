@@ -96,11 +96,7 @@
   <ItemGroup>
     <ClInclude Include="BaseHeader.h" />
     <ClInclude Include="BaseMacros.h" />
-    <ClInclude Include="CommandAllocatorPoolD3D12.h" />
-    <ClInclude Include="CommandListManagerD3D12.h" />
-    <ClInclude Include="CommandQueueD3D12.h" />
     <ClInclude Include="ContextD3D12.h" />
-    <ClInclude Include="DeviceD3D12.h" />
     <ClInclude Include="HighResolutionTimer.h" />
     <ClInclude Include="oCommandContextD3D12.h" />
     <ClInclude Include="oDescriptorHeapD3D12.h" />
@@ -128,11 +124,7 @@
     <ClInclude Include="WindowSystem.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CommandAllocatorPoolD3D12.cpp" />
-    <ClCompile Include="CommandListManagerD3D12.cpp" />
-    <ClCompile Include="CommandQueueD3D12.cpp" />
     <ClCompile Include="ContextD3D12.cpp" />
-    <ClCompile Include="DeviceD3D12.cpp" />
     <ClCompile Include="HighResolutionTimer.cpp" />
     <ClCompile Include="oCommandContextD3D12.cpp" />
     <ClCompile Include="oDescriptorHeapD3D12.cpp" />

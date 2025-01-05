@@ -25,7 +25,7 @@ public:
 
 	void WaitForGpu();
 
-	auto GetD3DDevice() const noexcept { return context.GetDevice()->GetD3DDevice(); }
+	auto GetD3DDevice() const noexcept { return context.GetD3DDevice(); }
 	auto GetCommandQueue() const noexcept { return commandQueue.Get(); }
 	auto GetCommandList() const noexcept { return commandList.Get(); }
 	auto GetCurrentCommandAllocator() const noexcept { return commandAllocators[currentBackBufferIndex].Get(); }

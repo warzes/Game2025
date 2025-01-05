@@ -4,7 +4,6 @@
 #include "WindowData.h"
 #include "Log.h"
 #include "RenderCore.h"
-#include "CommandListManagerD3D12.h"
 //=============================================================================
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -23,8 +22,6 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 
 	if (!context.Create(createInfo.context)) return false;
 	supportFeatures.allowTearing = context.IsSupportAllowTearing();
-
-	gCommandManager.Create(context.GetDevice()->GetD3DDevice());
 
 	commandQueue = createCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
 	if (!commandQueue) return false;
@@ -87,8 +84,6 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 void RHIBackend::DestroyAPI()
 {
 	WaitForGpu();
-
-	gCommandManager.Shutdown();
 
 	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
 	{
@@ -260,14 +255,14 @@ bool RHIBackend::createSwapChain(const WindowData& wndData)
 	fsSwapChainDesc.Windowed = TRUE;
 
 	ComPtr<IDXGISwapChain1> swapChain1;
-	HRESULT result = context.GetFactory()->CreateSwapChainForHwnd(commandQueue.Get(), wndData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
+	HRESULT result = context.GetD3DFactory()->CreateSwapChainForHwnd(commandQueue.Get(), wndData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
 		return false;
 	}
 
-	result = context.GetFactory()->MakeWindowAssociation(wndData.hwnd, DXGI_MWA_NO_ALT_ENTER);
+	result = context.GetD3DFactory()->MakeWindowAssociation(wndData.hwnd, DXGI_MWA_NO_ALT_ENTER);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::MakeWindowAssociation() failed: " + DXErrorToStr(result));
