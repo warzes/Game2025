@@ -77,18 +77,19 @@ DescriptorD3D12 StagingDescriptorHeapD3D12::GetNewDescriptor()
 	return newDescriptor;
 }
 //=============================================================================
-void StagingDescriptorHeapD3D12::FreeDescriptor(DescriptorD3D12 descriptor)
+void StagingDescriptorHeapD3D12::FreeDescriptor(DescriptorD3D12& descriptor)
 {
 	std::lock_guard<std::mutex> lockGuard(m_usageMutex);
 
 	m_freeDescriptors.push_back(descriptor.heapIndex);
+
+	descriptor = {};
 
 	if (m_activeHandleCount == 0)
 	{
 		Fatal("Freeing heap handles when there should be none left");
 		return;
 	}
-
 	m_activeHandleCount--;
 }
 //=============================================================================

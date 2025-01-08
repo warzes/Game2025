@@ -40,12 +40,12 @@ public:
 
 	auto GetRenderTargetView() const noexcept
 	{
-		return backBuffers[currentBackBufferIndex].Descriptor.CPUHandle;
+		return backBuffersDescriptor[currentBackBufferIndex].CPUHandle;
 	}
 
 	auto GetDepthStencilView() const noexcept
 	{
-		return depthStencil.Descriptor.CPUHandle;
+		return depthStencilDescriptor.CPUHandle;
 	}
 
 	RenderFeatures                      supportFeatures{};
@@ -65,8 +65,11 @@ public:
 	StagingDescriptorHeapD3D12*         CBVSRVUAVStagingDescriptorHeap{ nullptr };
 
 	ComPtr<IDXGISwapChain4>             swapChain;
-	TextureResourceD3D12                backBuffers[MAX_BACK_BUFFER_COUNT];
-	TextureResourceD3D12                depthStencil;
+	ComPtr<ID3D12Resource>              backBuffers[MAX_BACK_BUFFER_COUNT];
+	ComPtr<ID3D12Resource>              depthStencil;
+	DescriptorD3D12                     backBuffersDescriptor[MAX_BACK_BUFFER_COUNT];
+	DescriptorD3D12                     depthStencilDescriptor{};
+
 	D3D12_VIEWPORT                      screenViewport{};
 	D3D12_RECT                          scissorRect{};
 	UINT                                currentBackBufferIndex{ 0 };
@@ -82,6 +85,7 @@ private:
 	bool createDescriptorHeap();
 	bool createSwapChain(const WindowData& wndData);
 	bool updateRenderTargetViews();
+	void destroyRenderTargetViews();
 
 	ComPtr<ID3D12CommandQueue> createCommandQueue(D3D12_COMMAND_LIST_TYPE type);
 

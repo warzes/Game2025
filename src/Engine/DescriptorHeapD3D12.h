@@ -32,7 +32,7 @@ public:
 	~StagingDescriptorHeapD3D12();
 
 	DescriptorD3D12 GetNewDescriptor();
-	void FreeDescriptor(DescriptorD3D12 descriptor);
+	void FreeDescriptor(DescriptorD3D12& descriptor);
 
 private:
 	std::vector<uint32_t> m_freeDescriptors;
