@@ -4,6 +4,7 @@
 #include "Log.h"
 #include "RenderCore.h"
 #include "RHICoreD3D12.h"
+#include "StringUtils.h"
 //=============================================================================
 #if RHI_VALIDATION_ENABLED
 void D3D12MessageCallbackFunc(D3D12_MESSAGE_CATEGORY Category, D3D12_MESSAGE_SEVERITY Severity, D3D12_MESSAGE_ID ID, LPCSTR pDescription, void* pContext) noexcept
@@ -23,10 +24,11 @@ ContextD3D12::~ContextD3D12()
 bool ContextD3D12::Create(const ContextCreateInfo& createInfo)
 {
 	enableDebugLayer(createInfo);
-	if (!createFactory()) return false;
+	if (!createFactory())                   return false;
 	if (!selectAdapter(createInfo.useWarp)) return false;
-	if (!createDevice()) return false;
-	if (!createAllocator()) return false;
+	if (!createDevice())                    return false;
+	checkDeviceFeatureSupport();
+	if (!createAllocator())                 return false;
 
 	return true;
 }
@@ -184,6 +186,13 @@ bool ContextD3D12::selectAdapter(bool useWarp)
 		return false;
 	}
 
+
+	DXGI_ADAPTER_DESC1 desc;
+	m_adapter->GetDesc1(&desc);
+
+	const std::string AdapterDevice = UnicodeToASCII<_countof(desc.Description)>(desc.Description);
+	Print("Select GPU: " + AdapterDevice);
+
 	return true;
 }
 //=============================================================================
@@ -215,13 +224,6 @@ bool ContextD3D12::createDevice()
 
 	m_device->SetName(L"MiniEngine");
 
-	result = m_d3d12Features.Init(m_device.Get());
-	if (FAILED(result))
-	{
-		Fatal("CD3DX12FeatureSupport::Init() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
 #if RHI_VALIDATION_ENABLED
 	ComPtr<ID3D12InfoQueue1> d3dInfoQueue;
 	if (SUCCEEDED(m_device.As(&d3dInfoQueue)))
@@ -236,7 +238,8 @@ bool ContextD3D12::createDevice()
 			D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE, // This warning occurs when using capture frame while graphics debugging.
 			D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE,
 			D3D12_MESSAGE_ID_EXECUTECOMMANDLISTS_WRONGSWAPCHAINBUFFERREFERENCE,
-			D3D12_MESSAGE_ID_RESOURCE_BARRIER_MISMATCHING_COMMAND_LIST_TYPE
+			D3D12_MESSAGE_ID_RESOURCE_BARRIER_MISMATCHING_COMMAND_LIST_TYPE,
+			D3D12_MESSAGE_ID_COMMAND_LIST_DRAW_VERTEX_BUFFER_NOT_SET
 		};
 		D3D12_INFO_QUEUE_FILTER filter = {};
 		filter.DenyList.NumIDs = static_cast<UINT>(std::size(filteredMessages));
@@ -248,6 +251,150 @@ bool ContextD3D12::createDevice()
 #endif // RHI_VALIDATION_ENABLED
 
 	return true;
+}
+//=============================================================================
+void ContextD3D12::checkDeviceFeatureSupport()
+{
+	HRESULT result;
+	{
+		D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS ftQualityLevels = {};
+		result = m_device->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &ftQualityLevels, sizeof(ftQualityLevels));
+		if (!SUCCEEDED(result))
+		{
+			Warning("Device::CheckFeatureSupport(): MSAA Quality Levels failed.");
+		}
+		else
+		{
+			m_deviceCapabilities.supportedMaxMultiSampleQualityLevel = ftQualityLevels.NumQualityLevels;
+		}
+	}
+	{
+		D3D12_FEATURE_DATA_D3D12_OPTIONS5 ftOpt5 = {};
+		result = m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &ftOpt5, sizeof(ftOpt5));
+		if (!SUCCEEDED(result))
+		{
+			Warning("Device::CheckFeatureSupport(): HW Ray Tracing failed.");
+		}
+		else
+		{
+			m_deviceCapabilities.supportsHardwareRayTracing = ftOpt5.RaytracingTier != D3D12_RAYTRACING_TIER_NOT_SUPPORTED;
+		}
+	}
+	{
+		D3D12_FEATURE_DATA_D3D12_OPTIONS1 ftOpt1 = {};
+		result = m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &ftOpt1, sizeof(ftOpt1));
+		if (!SUCCEEDED(result))
+		{
+			Warning("Device::CheckFeatureSupport(): Wave ops failed.");
+		}
+		else
+		{
+			m_deviceCapabilities.supportsWaveOps = ftOpt1.WaveOps;
+		}
+	}
+	{
+		D3D12_FEATURE_DATA_D3D12_OPTIONS4 ftOpt4 = {};
+		result = m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS4, &ftOpt4, sizeof(ftOpt4));
+		if (!SUCCEEDED(result))
+		{
+			Warning("Device::CheckFeatureSupport(): Half-precision floating point shader ops failed.");
+		}
+		else
+		{
+			m_deviceCapabilities.supportsFP16 = ftOpt4.Native16BitShaderOpsSupported;
+		}
+	}
+	{
+		// https://docs.microsoft.com/en-us/windows/win32/direct3d12/typed-unordered-access-view-loads#supported-formats-and-api-calls
+		D3D12_FEATURE_DATA_D3D12_OPTIONS ftOpt0;
+		ZeroMemory(&ftOpt0, sizeof(ftOpt0));
+		result = m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &ftOpt0, sizeof(ftOpt0));
+		if (SUCCEEDED(result))
+		{
+			// TypedUAVLoadAdditionalFormats contains a Boolean that tells you whether the feature is supported or not
+			if (ftOpt0.TypedUAVLoadAdditionalFormats)
+			{
+				// Can assume "all-or-nothing" subset is supported (e.g. R32G32B32A32_FLOAT)
+				m_deviceCapabilities.supportsTypedUAVLoads = true;
+
+				// Cannot assume other formats are supported, so we check:
+				std::vector<DXGI_FORMAT> formatQueries =
+				{
+					  DXGI_FORMAT_R16G16B16A16_UNORM
+					, DXGI_FORMAT_R16G16B16A16_SNORM
+					, DXGI_FORMAT_R32G32_FLOAT
+					, DXGI_FORMAT_R32G32_UINT
+					, DXGI_FORMAT_R32G32_SINT
+					, DXGI_FORMAT_R10G10B10A2_UNORM
+					, DXGI_FORMAT_R10G10B10A2_UINT
+					, DXGI_FORMAT_R11G11B10_FLOAT
+					, DXGI_FORMAT_R8G8B8A8_SNORM
+					, DXGI_FORMAT_R16G16_FLOAT
+					, DXGI_FORMAT_R16G16_UNORM
+					, DXGI_FORMAT_R16G16_UINT
+					, DXGI_FORMAT_R16G16_SNORM
+					, DXGI_FORMAT_R16G16_SINT
+					, DXGI_FORMAT_R8G8_UNORM
+					, DXGI_FORMAT_R8G8_UINT
+					, DXGI_FORMAT_R8G8_SNORM
+					, DXGI_FORMAT_R8G8_SINT
+					, DXGI_FORMAT_R16_UNORM
+					, DXGI_FORMAT_R16_SNORM
+					, DXGI_FORMAT_R8_SNORM
+					, DXGI_FORMAT_A8_UNORM
+					, DXGI_FORMAT_B5G6R5_UNORM
+					, DXGI_FORMAT_B5G5R5A1_UNORM
+					, DXGI_FORMAT_B4G4R4A4_UNORM
+				};
+
+				for (DXGI_FORMAT fmt : formatQueries)
+				{
+
+					D3D12_FEATURE_DATA_FORMAT_SUPPORT ftDataSupport0 =
+					{
+						  fmt
+						, D3D12_FORMAT_SUPPORT1_NONE
+						, D3D12_FORMAT_SUPPORT2_NONE
+					};
+					result = m_device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &ftDataSupport0, sizeof(ftDataSupport0));
+
+					if (SUCCEEDED(result) && (ftDataSupport0.Support2 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD) != 0)
+					{
+						m_deviceCapabilities.typedUAVLoadFormatSupportMap[fmt] = true;
+					}
+					else
+					{
+						Warning("Device::CheckFeatureSupport(): Typed UAV load for DXGI_FORMAT:" + std::to_string(fmt) + " failed.");
+					}
+				}
+			}
+		}
+	}
+	{
+		D3D12_FEATURE_DATA_D3D12_OPTIONS7 ftOpt7 = {};
+		result = m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &ftOpt7, sizeof(ftOpt7));
+		if (!SUCCEEDED(result))
+		{
+			Warning("Device::CheckFeatureSupport(): Mesh Shaders & Sampler Feedback failed.");
+		}
+		else
+		{
+			m_deviceCapabilities.supportsMeshShaders = ftOpt7.MeshShaderTier != D3D12_MESH_SHADER_TIER_NOT_SUPPORTED;
+			m_deviceCapabilities.supportsSamplerFeedback = ftOpt7.SamplerFeedbackTier != D3D12_SAMPLER_FEEDBACK_TIER_NOT_SUPPORTED;
+		}
+	}
+	{
+		D3D12_FEATURE_DATA_D3D12_OPTIONS12 ftOpt12 = {};
+		result = m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &ftOpt12, sizeof(ftOpt12));
+		if (!SUCCEEDED(result))
+		{
+			Warning("Device::CheckFeatureSupport(): Enhanced barriers failed.");
+		}
+		else
+		{
+			m_deviceCapabilities.supportsEnhancedBarriers = ftOpt12.EnhancedBarriersSupported;
+		}
+	}
 }
 //=============================================================================
 bool ContextD3D12::createAllocator()

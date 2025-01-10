@@ -32,9 +32,6 @@ public:
 
 	bool IsSupportAllowTearing() const { return m_supportAllowTearing; }
 
-	unsigned GetDeviceMemoryMax() const;
-	unsigned GetDeviceMemoryAvailable() const;
-
 	const DeviceCapabilities& GetDeviceCapabilities() const { return m_deviceCapabilities; }
 
 private:
@@ -42,6 +39,7 @@ private:
 	bool createFactory();
 	bool selectAdapter(bool useWarp);
 	bool createDevice();
+	void checkDeviceFeatureSupport();
 	bool createAllocator();
 
 	ComPtr<IDXGIFactory7>      m_factory;
@@ -49,7 +47,6 @@ private:
 	bool                       m_supportAllowTearing{ false };
 	ComPtr<ID3D12Device14>     m_device;
 	ComPtr<D3D12MA::Allocator> m_allocator;
-	CD3DX12FeatureSupport      m_d3d12Features{};
 	DeviceCapabilities         m_deviceCapabilities;
 };
 

@@ -56,14 +56,20 @@
     <ClCompile Include="RHIFrameworlkD3D12.cpp">
       <Filter>RHI\Direct3D12</Filter>
     </ClCompile>
-    <ClCompile Include="ContextD3D12.cpp">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClCompile>
-    <ClCompile Include="DescriptorHeapD3D12.cpp">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClCompile>
     <ClCompile Include="StringUtils.cpp">
       <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="ContextD3D12.cpp">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="DescriptorHeapD3D12.cpp">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="SwapChainD3D12.cpp">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="Monitor.cpp">
+      <Filter>RHI\Utility</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -146,14 +152,23 @@
     <ClInclude Include="RHIFrameworlkD3D12.h">
       <Filter>RHI\Direct3D12</Filter>
     </ClInclude>
-    <ClInclude Include="DescriptorHeapD3D12.h">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClInclude>
-    <ClInclude Include="ContextD3D12.h">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClInclude>
     <ClInclude Include="StringUtils.h">
       <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="ContextD3D12.h">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="DescriptorHeapD3D12.h">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="SwapChainD3D12.h">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="HDR.h">
+      <Filter>RHI\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Monitor.h">
+      <Filter>RHI\Utility</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -192,6 +207,12 @@
     </Filter>
     <Filter Include="Core">
       <UniqueIdentifier>{eb65d02c-4411-40b8-91fb-f193a8f6877a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RHI\Direct3D12\Base">
+      <UniqueIdentifier>{742137f0-8400-4102-85b5-146c2e451fba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RHI\Utility">
+      <UniqueIdentifier>{c883221c-f06e-48e3-aa0f-0107bacbc9cb}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
