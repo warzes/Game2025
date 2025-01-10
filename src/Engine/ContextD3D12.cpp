@@ -80,6 +80,7 @@ void ContextD3D12::enableDebugLayer(const ContextCreateInfo& createInfo)
 
 	ComPtr<ID3D12Debug1> debugController1;
 	if (FAILED(debugController.As(&debugController1))) return;
+
 	if (createInfo.debug.enableGPUBasedValidation)
 	{
 		debugController1->SetEnableGPUBasedValidation(TRUE);
@@ -137,44 +138,46 @@ bool ContextD3D12::createFactory()
 bool ContextD3D12::selectAdapter(bool useWarp)
 {
 	HRESULT result{};
-	ComPtr<IDXGIAdapter> DXGIAdapter;
+
 	if (useWarp)
 	{
+		ComPtr<IDXGIAdapter> DXGIAdapter;
 		result = m_factory->EnumWarpAdapter(IID_PPV_ARGS(&DXGIAdapter));
 		if (FAILED(result))
 		{
 			Fatal("IDXGIFactory7::EnumWarpAdapter() failed: " + DXErrorToStr(result));
 			return false;
 		}
+		result = DXGIAdapter.As(&m_adapter);
 	}
 	else
 	{
-		auto NextAdapted = [&](uint32_t adapterIndex, ComPtr<IDXGIAdapter1>& adapter) {
-			return m_factory->EnumAdapterByGpuPreference(adapterIndex, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter));
-			};
-
 		ComPtr<IDXGIAdapter1> adapter;
-		for (uint32_t adapterIndex = 0; DXGI_ERROR_NOT_FOUND != NextAdapted(adapterIndex, adapter); ++adapterIndex)
+		uint32_t adapterIndex = 0;
+		while (m_factory->EnumAdapterByGpuPreference(adapterIndex, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)) != DXGI_ERROR_NOT_FOUND)
 		{
+			adapterIndex++;
+
 			DXGI_ADAPTER_DESC1 desc = {};
 			adapter->GetDesc1(&desc);
+
 			if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
 			{
-				DXGIAdapter.Reset();
+				adapter.Reset();
 				continue;
 			}
 
-			DXGIAdapter = adapter;
 			break;
 		}
 
-		if (!DXGIAdapter)
+		if (!adapter)
 		{
 			Fatal("IDXGIFactory7::EnumAdapterByGpuPreference() failed: " + DXErrorToStr(result));
 			return false;
 		}
+		result = adapter.As(&m_adapter);
 	}
-	result = DXGIAdapter.As(&m_adapter);
+
 	if (FAILED(result))
 	{
 		Fatal("DXGIAdapter As DXGIAdapter4 failed: " + DXErrorToStr(result));

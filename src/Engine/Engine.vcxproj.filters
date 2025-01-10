@@ -57,10 +57,13 @@
       <Filter>RHI\Direct3D12</Filter>
     </ClCompile>
     <ClCompile Include="ContextD3D12.cpp">
-      <Filter>RHI\Direct3D12\Low</Filter>
+      <Filter>RHI\Direct3D12</Filter>
     </ClCompile>
     <ClCompile Include="DescriptorHeapD3D12.cpp">
-      <Filter>RHI\Direct3D12\Low</Filter>
+      <Filter>RHI\Direct3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="StringUtils.cpp">
+      <Filter>Core</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -143,11 +146,14 @@
     <ClInclude Include="RHIFrameworlkD3D12.h">
       <Filter>RHI\Direct3D12</Filter>
     </ClInclude>
-    <ClInclude Include="ContextD3D12.h">
-      <Filter>RHI\Direct3D12\Low</Filter>
-    </ClInclude>
     <ClInclude Include="DescriptorHeapD3D12.h">
-      <Filter>RHI\Direct3D12\Low</Filter>
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="ContextD3D12.h">
+      <Filter>RHI\Direct3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="StringUtils.h">
+      <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -184,8 +190,8 @@
     <Filter Include="Platform\Timer">
       <UniqueIdentifier>{a9ee12a0-ebab-42e5-b324-0ff3abcb6193}</UniqueIdentifier>
     </Filter>
-    <Filter Include="RHI\Direct3D12\Low">
-      <UniqueIdentifier>{5bd4f3c0-522e-4b74-92ef-e69dbbabd555}</UniqueIdentifier>
+    <Filter Include="Core">
+      <UniqueIdentifier>{eb65d02c-4411-40b8-91fb-f193a8f6877a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
