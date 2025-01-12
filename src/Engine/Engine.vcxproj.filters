@@ -71,6 +71,12 @@
     <ClCompile Include="Monitor.cpp">
       <Filter>RHI\Utility</Filter>
     </ClCompile>
+    <ClCompile Include="CommandQueueD3D12.cpp">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="FenceD3D12.cpp">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -169,6 +175,12 @@
     </ClInclude>
     <ClInclude Include="Monitor.h">
       <Filter>RHI\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="CommandQueueD3D12.h">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="FenceD3D12.h">
+      <Filter>RHI\Direct3D12\Base</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

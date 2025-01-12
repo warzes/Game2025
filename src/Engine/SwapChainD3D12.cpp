@@ -308,7 +308,7 @@ void SwapChainD3D12::destroyRenderTargetViews()
 //=============================================================================
 bool SwapChainD3D12::checkHDRSupport()
 {
-#error
+//#error
 	return false;
 }
 //=============================================================================

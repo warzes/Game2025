@@ -5,6 +5,8 @@
 #include "RHICoreD3D12.h"
 #include "ContextD3D12.h"
 #include "DescriptorHeapD3D12.h"
+#include "CommandQueueD3D12.h"
+#include "FenceD3D12.h"
 
 struct WindowData;
 struct RenderSystemCreateInfo;
@@ -27,7 +29,7 @@ public:
 	void WaitForGpu();
 
 	auto GetD3DDevice() const noexcept { return context.GetD3DDevice(); }
-	auto GetCommandQueue() const noexcept { return commandQueue.Get(); }
+	auto GetCommandQueue() const noexcept { return commandQueue.Get().Get(); }
 	auto GetCommandList() const noexcept { return commandList.Get(); }
 	auto GetCurrentCommandAllocator() const noexcept { return commandAllocators[currentBackBufferIndex].Get(); }
 	auto GetSwapChain() const noexcept { return swapChain.Get(); }
@@ -51,14 +53,13 @@ public:
 	RenderFeatures                      supportFeatures{};
 	ContextD3D12                        context;
 
-	ComPtr<ID3D12CommandQueue>          commandQueue;
+	CommandQueueD3D12                   commandQueue;
 	ComPtr<ID3D12GraphicsCommandList10> commandList;
 	ComPtr<ID3D12CommandAllocator>      commandAllocators[MAX_BACK_BUFFER_COUNT];
 
 	// Synchronization objects
-	ComPtr<ID3D12Fence>                 fence;
+	FenceD3D12                          fence;
 	uint64_t                            fenceValues[MAX_BACK_BUFFER_COUNT] = {};
-	Microsoft::WRL::Wrappers::Event     fenceEvent;
 
 	StagingDescriptorHeapD3D12*         RTVStagingDescriptorHeap{ nullptr };
 	StagingDescriptorHeapD3D12*         DSVStagingDescriptorHeap{ nullptr };
@@ -86,8 +87,6 @@ private:
 	bool createSwapChain(const WindowData& wndData);
 	bool updateRenderTargetViews();
 	void destroyRenderTargetViews();
-
-	ComPtr<ID3D12CommandQueue> createCommandQueue(D3D12_COMMAND_LIST_TYPE type);
 
 	void moveToNextFrame();
 };

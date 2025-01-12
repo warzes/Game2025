@@ -96,8 +96,10 @@
   <ItemGroup>
     <ClInclude Include="BaseHeader.h" />
     <ClInclude Include="BaseMacros.h" />
+    <ClInclude Include="CommandQueueD3D12.h" />
     <ClInclude Include="ContextD3D12.h" />
     <ClInclude Include="DescriptorHeapD3D12.h" />
+    <ClInclude Include="FenceD3D12.h" />
     <ClInclude Include="HDR.h" />
     <ClInclude Include="HighResolutionTimer.h" />
     <ClInclude Include="Monitor.h" />
@@ -129,8 +131,10 @@
     <ClInclude Include="WindowSystem.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CommandQueueD3D12.cpp" />
     <ClCompile Include="ContextD3D12.cpp" />
     <ClCompile Include="DescriptorHeapD3D12.cpp" />
+    <ClCompile Include="FenceD3D12.cpp" />
     <ClCompile Include="HighResolutionTimer.cpp" />
     <ClCompile Include="Monitor.cpp" />
     <ClCompile Include="oCommandContextD3D12.cpp" />

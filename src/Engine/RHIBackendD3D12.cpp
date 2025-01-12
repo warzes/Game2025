@@ -23,8 +23,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	if (!context.Create(createInfo.context)) return false;
 	supportFeatures.allowTearing = context.IsSupportAllowTearing();
 
-	commandQueue = createCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
-	if (!commandQueue) return false;
+	if (!commandQueue.Create(context.GetD3DDevice(), D3D12_COMMAND_LIST_TYPE_DIRECT, "Main Render Command Queue")) return false;
 
 	if (!createDescriptorHeap()) return false;
 	if (!createSwapChain(wndData)) return false;
@@ -52,21 +51,11 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	}
 
 	// Create a fence for tracking GPU execution progress.
-	result = GetD3DDevice()->CreateFence(fenceValues[currentBackBufferIndex], D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
-	if (FAILED(result))
-	{
-		Fatal("ID3D12Device14::CreateFence() failed: " + DXErrorToStr(result));
-		return false;
-	}
-	fenceValues[currentBackBufferIndex]++;
-
-	fenceEvent.Attach(CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE));
-	if (!fenceEvent.IsValid())
-	{
-		Fatal("CreateEventEx() failed.");
-		return false;
-	}
-
+	if (!fence.Create(context.GetD3DDevice(), "Main Render Fence")) return false;	
+	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
+		fenceValues[i] = 0;
+	//fenceValues[currentBackBufferIndex]++; // TODO: ненужно?
+	
 	if (!updateRenderTargetViews()) return false;
 
 	return true;
@@ -82,9 +71,8 @@ void RHIBackend::DestroyAPI()
 		commandAllocators[i].Reset();
 	}
 	commandList.Reset();
-	commandQueue.Reset();
-	fence.Reset();
-	fenceEvent.Close();
+	commandQueue.Destroy();
+	fence.Destroy();
 
 	destroyRenderTargetViews();
 
@@ -108,10 +96,13 @@ void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 	// Wait until all previous GPU work is complete.
 	WaitForGpu();
 
+	destroyRenderTargetViews();
+
 	// Release resources that are tied to the swap chain and update fence values.
 	for (UINT n = 0; n < MAX_BACK_BUFFER_COUNT; n++)
 	{
-		fenceValues[n] = fenceValues[currentBackBufferIndex];
+		//fenceValues[n] = fenceValues[currentBackBufferIndex];
+		fenceValues[n] = 0;
 	}
 
 	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
@@ -121,8 +112,6 @@ void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 		Fatal("IDXGISwapChain4::GetDesc() failed: " + DXErrorToStr(result));
 		return;
 	}
-
-	destroyRenderTargetViews();
 	
 	result = swapChain->ResizeBuffers(MAX_BACK_BUFFER_COUNT, frameBufferWidth, frameBufferHeight, swapChainDesc.BufferDesc.Format, swapChainDesc.Flags);
 	if (FAILED(result))
@@ -189,7 +178,7 @@ void RHIBackend::Present(D3D12_RESOURCE_STATES beforeState)
 		Fatal("ID3D12GraphicsCommandList10::Close() failed: " + DXErrorToStr(result));
 		return;
 	}
-	commandQueue->ExecuteCommandLists(1, CommandListCast(commandList.GetAddressOf()));
+	commandQueue.Get()->ExecuteCommandLists(1, CommandListCast(commandList.GetAddressOf()));
 
 	UINT syncInterval = vsync ? 1 : 0;
 	UINT presentFlags = supportFeatures.allowTearing && !vsync ? DXGI_PRESENT_ALLOW_TEARING : 0;
@@ -204,16 +193,16 @@ void RHIBackend::Present(D3D12_RESOURCE_STATES beforeState)
 //=============================================================================
 void RHIBackend::WaitForGpu()
 {
-	if (commandQueue && fence && fenceEvent.IsValid())
+	if (commandQueue.Get() && fence.IsValid())
 	{
 		// Schedule a Signal command in the GPU queue.
 		const UINT64 fenceValue = fenceValues[currentBackBufferIndex];
-		if (SUCCEEDED(commandQueue->Signal(fence.Get(), fenceValue)))
+		if (commandQueue.Signal(fence, fenceValue))
 		{
 			// Wait until the Signal has been processed.
-			if (SUCCEEDED(fence->SetEventOnCompletion(fenceValue, fenceEvent.Get())))
+			if (SUCCEEDED(fence.Get()->SetEventOnCompletion(fenceValue, fence.GetEvent())))
 			{
-				std::ignore = WaitForSingleObjectEx(fenceEvent.Get(), INFINITE, FALSE);
+				std::ignore = WaitForSingleObjectEx(fence.GetEvent(), INFINITE, FALSE);
 
 				// Increment the fence value for the current frame.
 				fenceValues[currentBackBufferIndex]++;
@@ -276,7 +265,7 @@ bool RHIBackend::createSwapChain(const WindowData& wndData)
 	fsSwapChainDesc.Windowed = TRUE;
 
 	ComPtr<IDXGISwapChain1> swapChain1;
-	HRESULT result = context.GetD3DFactory()->CreateSwapChainForHwnd(commandQueue.Get(), wndData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
+	HRESULT result = context.GetD3DFactory()->CreateSwapChainForHwnd(commandQueue, wndData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
@@ -394,50 +383,17 @@ void RHIBackend::destroyRenderTargetViews()
 	depthStencil.Reset();
 }
 //=============================================================================
-ComPtr<ID3D12CommandQueue> RHIBackend::createCommandQueue(D3D12_COMMAND_LIST_TYPE type)
-{
-	D3D12_COMMAND_QUEUE_DESC queueDesc = {};
-	queueDesc.Type                     = type;
-	queueDesc.Priority                 = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
-	queueDesc.Flags                    = D3D12_COMMAND_QUEUE_FLAG_NONE;
-	queueDesc.NodeMask                 = 0;
-	ComPtr<ID3D12CommandQueue> d3d12CommandQueue;
-	HRESULT result = GetD3DDevice()->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&d3d12CommandQueue));
-	if (FAILED(result))
-	{
-		Fatal("ID3D12Device14::CreateCommandQueue() failed: " + DXErrorToStr(result));
-		return nullptr;
-	}
-	return d3d12CommandQueue;
-}
-//=============================================================================
 void RHIBackend::moveToNextFrame()
 {
 	// Schedule a Signal command in the queue.
 	const UINT64 currentFenceValue = fenceValues[currentBackBufferIndex];
-	HRESULT result = commandQueue->Signal(fence.Get(), currentFenceValue);
-	if (FAILED(result))
-	{
-		Fatal("ID3D12CommandQueue::Signal() failed: " + DXErrorToStr(result));
-		return;
-	}
+	commandQueue.Signal(fence, currentFenceValue);
+
 
 	// Update the back buffer index.
 	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
-
 	// If the next frame is not ready to be rendered yet, wait until it is ready.
-	if (fence->GetCompletedValue() < fenceValues[currentBackBufferIndex])
-	{
-		result = fence->SetEventOnCompletion(fenceValues[currentBackBufferIndex], fenceEvent.Get());
-		if (FAILED(result))
-		{
-			Fatal("ID3D12Fence::SetEventOnCompletion() failed: " + DXErrorToStr(result));
-			return;
-		}
-
-		std::ignore = WaitForSingleObjectEx(fenceEvent.Get(), INFINITE, FALSE);
-	}
-
+	fence.WaitOnCPU(fenceValues[currentBackBufferIndex]);
 	// Set the fence value for the next frame.
 	fenceValues[currentBackBufferIndex] = currentFenceValue + 1;
 }

@@ -267,7 +267,7 @@ void ExampleRender002()
 		// Close the command list and execute it to begin the initial GPU setup.
 		gRHI.commandList->Close();
 		ID3D12CommandList* ppCommandLists[] = { gRHI.commandList.Get() };
-		gRHI.commandQueue->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+		gRHI.commandQueue.Get()->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
 
 		gRHI.WaitForGpu();
 
