@@ -16,12 +16,11 @@ void ExampleRender001()
 			XMFLOAT4 color;
 		};
 
-		ComPtr<ID3D12RootSignature> rootSignature;
-		ComPtr<ID3D12PipelineState> pipelineState;
 		ComPtr<ID3D12Resource>      vertexBuffer;
 		D3D12_VERTEX_BUFFER_VIEW    vertexBufferView;
 
 		// Create an empty root signature.
+		ComPtr<ID3D12RootSignature> rootSignature;
 		{
 			CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 			rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -33,6 +32,7 @@ void ExampleRender001()
 		}
 
 		// Create the pipeline state, which includes compiling and loading shaders.
+		ComPtr<ID3D12PipelineState> pipelineState;
 		{
 			ComPtr<ID3DBlob> vertexShader;
 			ComPtr<ID3DBlob> pixelShader;
@@ -50,8 +50,8 @@ void ExampleRender001()
 			// Define the vertex input layout.
 			D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
 			{
-				{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-				{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+				{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+				{ "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
 			};
 
 			// Describe and create the graphics pipeline state object (PSO).
@@ -78,8 +78,8 @@ void ExampleRender001()
 			// Define the geometry for a triangle.
 			Vertex triangleVertices[] =
 			{
-				{ { 0.0f, 0.25f * aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-				{ { 0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+				{ {  0.0f,   0.25f * aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+				{ {  0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
 				{ { -0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
 			};
 
@@ -101,7 +101,7 @@ void ExampleRender001()
 
 			// Copy the triangle data to the vertex buffer.
 			UINT8* pVertexDataBegin;
-			CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
+			CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
 			vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin));
 			memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
 			vertexBuffer->Unmap(0, nullptr);

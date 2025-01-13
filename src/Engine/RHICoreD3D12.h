@@ -2,6 +2,8 @@
 
 #if RENDER_D3D12
 
+#include "Log.h"
+
 constexpr uint32_t MAX_BACK_BUFFER_COUNT = 3;
 constexpr uint32_t NUM_RTV_STAGING_DESCRIPTORS = 256;
 constexpr uint32_t NUM_DSV_STAGING_DESCRIPTORS = 32;
@@ -14,18 +16,20 @@ struct RenderFeatures final
 	bool allowTearing{ false };
 };
 
+const std::string DXErrorToStr(HRESULT hr);
+const std::string ConvertToStr(D3D_FEATURE_LEVEL level);
+
 template<class... Args>
-[[nodiscard]] inline HRESULT SetName(ID3D12Object* pObj, const char* format, Args&&... args)
+[[nodiscard]] inline void SetName(ID3D12Object* pObj, const char* format, Args&&... args)
 {
 	char bufName[240];
 	sprintf_s(bufName, format, args...);
 	std::string Name = bufName;
 	std::wstring wName(Name.begin(), Name.end());
-	return pObj->SetName(wName.c_str());
+	HRESULT result = pObj->SetName(wName.c_str());
+	if (FAILED(result))
+		Fatal("SetName() failed: " + DXErrorToStr(result));
 }
-
-const std::string DXErrorToStr(HRESULT hr);
-const std::string ConvertToStr(D3D_FEATURE_LEVEL level);
 
 struct DescriptorD3D12 final
 {

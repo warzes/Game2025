@@ -82,6 +82,7 @@ public:
 	bool                                vsync{ false };
 
 private:
+	void resetVal();
 	bool setSize(uint32_t width, uint32_t height);
 	bool createDescriptorHeap();
 	bool createSwapChain(const WindowData& wndData);

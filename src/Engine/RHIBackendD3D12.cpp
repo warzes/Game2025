@@ -17,16 +17,16 @@ RHIBackend gRHI{};
 //=============================================================================
 bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateInfo& createInfo)
 {
+	resetVal();
 	setSize(wndData.width, wndData.height);
 	vsync = createInfo.vsync;
 
 	if (!context.Create(createInfo.context)) return false;
 	supportFeatures.allowTearing = context.IsSupportAllowTearing();
-
 	if (!commandQueue.Create(context.GetD3DDevice(), D3D12_COMMAND_LIST_TYPE_DIRECT, "Main Render Command Queue")) return false;
-
-	if (!createDescriptorHeap()) return false;
 	if (!createSwapChain(wndData)) return false;
+	if (!createDescriptorHeap()) return false;
+	if (!updateRenderTargetViews()) return false;
 
 	// Create a command allocator for each back buffer that will be rendered to.
 	for (int i = 0; i < MAX_BACK_BUFFER_COUNT; ++i)
@@ -42,6 +42,10 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 		commandAllocators[i]->SetName(name);
 	}
 
+	// Create a fence for tracking GPU execution progress.
+	if (!fence.Create(context.GetD3DDevice(), "Main Render Fence")) return false;
+	fenceValues[currentBackBufferIndex]++;
+
 	// Create a command list for recording graphics commands.
 	HRESULT result = GetD3DDevice()->CreateCommandList1(0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&commandList));
 	if (FAILED(result))
@@ -49,14 +53,6 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 		Fatal("ID3D12Device14::CreateCommandList1() failed: " + DXErrorToStr(result));
 		return false;
 	}
-
-	// Create a fence for tracking GPU execution progress.
-	if (!fence.Create(context.GetD3DDevice(), "Main Render Fence")) return false;	
-	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
-		fenceValues[i] = 0;
-	//fenceValues[currentBackBufferIndex]++; // TODO: ненужно?
-	
-	if (!updateRenderTargetViews()) return false;
 
 	return true;
 }
@@ -101,8 +97,7 @@ void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 	// Release resources that are tied to the swap chain and update fence values.
 	for (UINT n = 0; n < MAX_BACK_BUFFER_COUNT; n++)
 	{
-		//fenceValues[n] = fenceValues[currentBackBufferIndex];
-		fenceValues[n] = 0;
+		fenceValues[n] = fenceValues[currentBackBufferIndex];
 	}
 
 	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
@@ -196,11 +191,10 @@ void RHIBackend::WaitForGpu()
 	if (commandQueue.Get() && fence.IsValid())
 	{
 		// Schedule a Signal command in the GPU queue.
-		const UINT64 fenceValue = fenceValues[currentBackBufferIndex];
-		if (commandQueue.Signal(fence, fenceValue))
+		if (commandQueue.Signal(fence, fenceValues[currentBackBufferIndex]))
 		{
 			// Wait until the Signal has been processed.
-			if (SUCCEEDED(fence.Get()->SetEventOnCompletion(fenceValue, fence.GetEvent())))
+			if (SUCCEEDED(fence.Get()->SetEventOnCompletion(fenceValues[currentBackBufferIndex], fence.GetEvent())))
 			{
 				std::ignore = WaitForSingleObjectEx(fence.GetEvent(), INFINITE, FALSE);
 
@@ -209,6 +203,16 @@ void RHIBackend::WaitForGpu()
 			}
 		}
 	}
+}
+//=============================================================================
+void RHIBackend::resetVal()
+{
+	supportFeatures = {};
+	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
+		fenceValues[i] = 0;
+	currentBackBufferIndex = 0;
+	frameBufferWidth = 0;
+	frameBufferHeight = 0;
 }
 //=============================================================================
 bool RHIBackend::setSize(uint32_t width, uint32_t height)
@@ -304,7 +308,6 @@ bool RHIBackend::updateRenderTargetViews()
 			Fatal("IDXGISwapChain4::GetBuffer() failed: " + DXErrorToStr(result));
 			return false;
 		}
-
 		wchar_t name[25] = {};
 		swprintf_s(name, L"Render target %u", bufferIndex);
 		backBuffers[bufferIndex]->SetName(name);
@@ -312,7 +315,6 @@ bool RHIBackend::updateRenderTargetViews()
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
 		rtvDesc.Format                        = backBufferFormat; // TODO: DXGI_FORMAT_R8G8B8A8_UNORM_SRGB ???
 		rtvDesc.ViewDimension                 = D3D12_RTV_DIMENSION_TEXTURE2D;
-
 
 		backBuffersDescriptor[bufferIndex] = RTVStagingDescriptorHeap->GetNewDescriptor();
 		GetD3DDevice()->CreateRenderTargetView(backBuffers[bufferIndex].Get(), &rtvDesc, backBuffersDescriptor[bufferIndex].CPUHandle);
@@ -388,7 +390,6 @@ void RHIBackend::moveToNextFrame()
 	// Schedule a Signal command in the queue.
 	const UINT64 currentFenceValue = fenceValues[currentBackBufferIndex];
 	commandQueue.Signal(fence, currentFenceValue);
-
 
 	// Update the back buffer index.
 	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();

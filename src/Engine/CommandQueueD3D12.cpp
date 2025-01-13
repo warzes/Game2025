@@ -20,14 +20,7 @@ bool CommandQueueD3D12::Create(ID3D12Device14* device, D3D12_COMMAND_LIST_TYPE t
 	}
 
 	if (name)
-	{
-		result = SetName(m_queue.Get(), name);
-		if (FAILED(result))
-		{
-			Fatal("SetName() failed: " + DXErrorToStr(result));
-			return false;
-		}
-	}
+		SetName(m_queue.Get(), name);
 
 	return true;
 }

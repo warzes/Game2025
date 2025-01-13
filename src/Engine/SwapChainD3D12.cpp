@@ -4,6 +4,7 @@
 #include "WindowData.h"
 #include "Log.h"
 #include "Monitor.h"
+#include "GPUMarker.h"
 //=============================================================================
 SwapChainD3D12::~SwapChainD3D12()
 {
@@ -27,7 +28,7 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 	DXGI_FORMAT SwapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 	// Check HDR support : https://docs.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range
-	const bool bIsHDRCapableDisplayAvailable = checkHDRSupport();
+	const bool bIsHDRCapableDisplayAvailable = checkHDRSupport(createInfo.windowData->hwnd);
 	if (createInfo.HDR)
 	{
 		if (bIsHDRCapableDisplayAvailable)
@@ -84,6 +85,7 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
 		return false;
 	}
+	m_format = SwapChainFormat;
 
 	result = createInfo.factory->MakeWindowAssociation(createInfo.windowData->hwnd, DXGI_MWA_NO_ALT_ENTER);
 	if (FAILED(result))
@@ -99,9 +101,6 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 		return false;
 	}
 
-	m_format = SwapChainFormat;
-	m_currentBackBuffer = m_swapChain->GetCurrentBackBufferIndex();
-
 	// Set color space for HDR if specified
 	if (createInfo.HDR && bIsHDRCapableDisplayAvailable)
 	{
@@ -110,10 +109,12 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 		EnsureSwapChainColorSpace(createInfo.bitDepth, bIsHDR10Signal);
 	}
 
+	m_currentBackBuffer = m_swapChain->GetCurrentBackBufferIndex();
+
 	// Create Fence & Fence Event
 	D3D12_FENCE_FLAGS FenceFlags = D3D12_FENCE_FLAG_NONE;
 	m_device->CreateFence(m_fenceValues[m_currentBackBuffer], FenceFlags, IID_PPV_ARGS(&m_fence));
-	++m_fenceValues[m_currentBackBuffer];
+	m_fenceValues[m_currentBackBuffer]++;
 	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	if (m_fenceEvent == nullptr)
 	{
@@ -211,10 +212,54 @@ HRESULT SwapChainD3D12::Present()
 //=============================================================================
 void SwapChainD3D12::MoveToNextFrame()
 {
+	// Schedule a Signal command in the queue.
+	const UINT64 currentFenceValue = m_fenceValues[m_currentBackBuffer];
+	m_presentQueue->Signal(m_fence.Get(), currentFenceValue);
+
+	// Update the frame index.
+	m_currentBackBuffer = m_swapChain->GetCurrentBackBufferIndex();
+	m_numTotalFrames++;
+
+	// If the next frame is not ready to be rendered yet, wait until it is ready.
+	UINT64 fenceComplVal = m_fence->GetCompletedValue();
+	HRESULT hr = {};
+	if (fenceComplVal < m_fenceValues[m_currentBackBuffer])
+	{
+		SCOPED_CPU_MARKER_C("GPU_BOUND", 0xFF005500);
+		m_fence->SetEventOnCompletion(m_fenceValues[m_currentBackBuffer], m_fenceEvent);
+		hr = WaitForSingleObjectEx(m_fenceEvent, 1000, FALSE);
+	}
+	switch (hr)
+	{
+	case S_OK: break;
+	case WAIT_TIMEOUT:
+		Warning("SwapChain timed out on WaitForGPU(): Signal=" + std::to_string(m_fenceValues[m_currentBackBuffer]) + ", ICurrBackBuffer=" + std::to_string(m_currentBackBuffer) + ", NumFramesPresented=" + std::to_string(GetNumPresentedFrames()));
+		break;
+	default: break;
+	}
+
+	// Set the fence value for the next frame.
+	m_fenceValues[m_currentBackBuffer] = currentFenceValue + 1;
 }
 //=============================================================================
 void SwapChainD3D12::WaitForGPU()
 {
+	ID3D12Fence* pFence;
+	HRESULT hr = m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pFence));
+	if (hr != S_OK)
+	{
+		Fatal("WaitForGPU(): Failed to CreateFence()");
+		return;
+	}
+
+	m_presentQueue->Signal(pFence, 1);
+
+	HANDLE mHandleFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	pFence->SetEventOnCompletion(1, mHandleFenceEvent);
+	WaitForSingleObject(mHandleFenceEvent, INFINITE);
+	CloseHandle(mHandleFenceEvent);
+
+	pFence->Release();
 }
 //=============================================================================
 void SwapChainD3D12::SetHDRMetaData(ColorSpace colorSpace, float MaxOutputNits, float MinOutputNits, float MaxContentLightLevel, float MaxFrameAverageLightLevel)
@@ -275,7 +320,6 @@ void SwapChainD3D12::EnsureSwapChainColorSpace(SwapChainBitDepth swapChainBitDep
 	case SwapChainBitDepth::_16: colorSpace = DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709; break;
 	}
 
-	//if (mColorSpace != colorSpace)
 	{
 		UINT colorSpaceSupport = 0;
 		if (SUCCEEDED(m_swapChain->CheckColorSpaceSupport(colorSpace, &colorSpaceSupport)) && ((colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT) == DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT))
@@ -294,22 +338,145 @@ void SwapChainD3D12::EnsureSwapChainColorSpace(SwapChainBitDepth swapChainBitDep
 //=============================================================================
 DXGI_OUTPUT_DESC1 SwapChainD3D12::GetContainingMonitorDesc() const
 {
-	return DXGI_OUTPUT_DESC1();
+	DXGI_OUTPUT_DESC1 d = {};
+
+	// Figure out which monitor swapchain is in
+	// and set the mode we want to use for ResizeTarget().
+	IDXGIOutput6* pOut = nullptr;
+	{
+		IDXGIOutput* pOutput = nullptr;
+		HRESULT hr = m_swapChain->GetContainingOutput(&pOutput);
+		if (hr != S_OK || pOutput == nullptr)
+		{
+			Fatal("SwapChain::GetContainingOutput() returned error");
+			return d;
+		}
+		hr = pOutput->QueryInterface(IID_PPV_ARGS(&pOut));
+		assert(hr == S_OK);
+		pOutput->Release();
+	}
+	pOut->GetDesc1(&d);
+	pOut->Release();
+	return d;
 }
 //=============================================================================
 bool SwapChainD3D12::createRenderTargetViews()
 {
-	return false;
+	const UINT RTVDescSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	D3D12_CPU_DESCRIPTOR_HANDLE hRTV{ m_descHeapRTV->GetCPUDescriptorHandleForHeapStart() };
+
+	HRESULT hr = {};
+	for (int i = 0; i < m_numBackBuffers; i++)
+	{
+		hr = m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i]));
+		if (FAILED(hr))
+		{
+			Fatal("SwapChain->GetBuffer(" + std::to_string(i) + ", ...) failed");
+			return false;
+		}
+
+		m_device->CreateRenderTargetView(m_renderTargets[i].Get(), nullptr, hRTV);
+		hRTV.ptr += RTVDescSize;
+		SetName(m_renderTargets[i].Get(), "SwapChain::RenderTarget[%d]", i);
+	}
+	return true;
 }
 //=============================================================================
 void SwapChainD3D12::destroyRenderTargetViews()
 {
+	for (int i = 0; i < m_numBackBuffers; i++)
+		m_renderTargets[i].Reset();
 }
 //=============================================================================
-bool SwapChainD3D12::checkHDRSupport()
+// To detect HDR support, we will need to check the color space in the primary DXGI output associated with the app at
+// this point in time (using window/display intersection). 
+static inline int ComputeIntersectionArea(int ax1, int ay1, int ax2, int ay2, int bx1, int by1, int bx2, int by2)
 {
-//#error
-	return false;
+	// Compute the overlay area of two rectangles, A and B.
+	// (ax1, ay1) = left-top coordinates of A; (ax2, ay2) = right-bottom coordinates of A
+	// (bx1, by1) = left-top coordinates of B; (bx2, by2) = right-bottom coordinates of B
+	return std::max(0, std::min(ax2, bx2) - std::max(ax1, bx1)) * std::max(0, std::min(ay2, by2) - std::max(ay1, by1));
+}
+//=============================================================================
+bool SwapChainD3D12::checkHDRSupport(HWND hwnd)
+{
+	auto fnThrowIfFailed = [](HRESULT hr)
+		{
+			if (FAILED(hr))
+			{
+				assert(false);// throw HrException(hr);
+			}
+		};
+
+	RECT windowRect = {};
+	GetWindowRect(hwnd, &windowRect);
+
+	using namespace Microsoft::WRL;
+	ComPtr<IDXGIFactory6> m_dxgiFactory;
+	fnThrowIfFailed(CreateDXGIFactory2(0, IID_PPV_ARGS(&m_dxgiFactory)));
+
+	// From D3D12HDR: 
+	// First, the method must determine the app's current display. 
+	// We don't recommend using IDXGISwapChain::GetContainingOutput method to do that because of two reasons:
+	//    1. Swap chains created with CreateSwapChainForComposition do not support this method.
+	//    2. Swap chains will return a stale dxgi output once DXGIFactory::IsCurrent() is false. In addition, 
+	//       we don't recommend re-creating swapchain to resolve the stale dxgi output because it will cause a short 
+	//       period of black screen.
+	// Instead, we suggest enumerating through the bounds of all dxgi outputs and determine which one has the greatest 
+	// intersection with the app window bounds. Then, use the DXGI output found in previous step to determine if the 
+	// app is on a HDR capable display. 
+
+	// Retrieve the current default adapter.
+	ComPtr<IDXGIAdapter1> dxgiAdapter;
+	fnThrowIfFailed(m_dxgiFactory->EnumAdapters1(0, &dxgiAdapter));
+
+	// Iterate through the DXGI outputs associated with the DXGI adapter,
+	// and find the output whose bounds have the greatest overlap with the
+	// app window (i.e. the output for which the intersection area is the
+	// greatest).
+
+	UINT i = 0;
+	ComPtr<IDXGIOutput> currentOutput;
+	ComPtr<IDXGIOutput> bestOutput;
+	float bestIntersectArea = -1;
+
+	while (dxgiAdapter->EnumOutputs(i, &currentOutput) != DXGI_ERROR_NOT_FOUND)
+	{
+		// Get the retangle bounds of the app window
+		int ax1 = windowRect.left;
+		int ay1 = windowRect.top;
+		int ax2 = windowRect.right;
+		int ay2 = windowRect.bottom;
+
+		// Get the rectangle bounds of current output
+		DXGI_OUTPUT_DESC desc;
+		fnThrowIfFailed(currentOutput->GetDesc(&desc));
+		RECT r = desc.DesktopCoordinates;
+		int bx1 = r.left;
+		int by1 = r.top;
+		int bx2 = r.right;
+		int by2 = r.bottom;
+
+		// Compute the intersection
+		int intersectArea = ComputeIntersectionArea(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2);
+		if (intersectArea > bestIntersectArea)
+		{
+			bestOutput = currentOutput;
+			bestIntersectArea = static_cast<float>(intersectArea);
+		}
+
+		i++;
+	}
+
+	// Having determined the output (display) upon which the app is primarily being 
+	// rendered, retrieve the HDR capabilities of that display by checking the color space.
+	ComPtr<IDXGIOutput6> output6;
+	fnThrowIfFailed(bestOutput.As(&output6));
+
+	DXGI_OUTPUT_DESC1 desc1;
+	fnThrowIfFailed(output6->GetDesc1(&desc1));
+
+	return (desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020);
 }
 //=============================================================================
 #endif // RENDER_D3D12

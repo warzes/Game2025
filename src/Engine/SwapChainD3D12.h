@@ -63,7 +63,7 @@ public:
 	auto GetHDRMetaData_MinOutputNits() const { return static_cast<float>(m_HDRMetaData.MinMasteringLuminance) / 10000.0f; }
 
 private:
-	bool checkHDRSupport();
+	bool checkHDRSupport(HWND hwnd);
 
 	bool createRenderTargetViews();
 	void destroyRenderTargetViews();

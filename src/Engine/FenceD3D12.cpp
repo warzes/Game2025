@@ -14,14 +14,8 @@ bool FenceD3D12::Create(ID3D12Device14* device, const char* debugName)
 	}
 
 	if (debugName)
-	{
-		result = SetName(m_fence.Get(), debugName);
-		if (FAILED(result))
-		{
-			Fatal("SetName() failed: " + DXErrorToStr(result));
-			return false;
-		}
-	}
+		SetName(m_fence.Get(), debugName);
+
 	m_event.Attach(CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE));
 	if (!m_event.IsValid())
 	{

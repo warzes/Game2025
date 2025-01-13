@@ -49,7 +49,7 @@
 #	define OEMRESOURCE
 #	define NOATOM
 #	define NOCLIPBOARD
-#	define NOCTLMGR
+//#	define NOCTLMGR
 #	define NODRAWTEXT
 #	define NOKERNEL
 //#	define NONLS
@@ -102,7 +102,7 @@
 #	include <DirectXShaderCompiler/dxcapi.h>
 #	include <DirectXTex/DirectXTex.h>
 
-#	include <pix.h>
+#	include <pix3.h>
 
 using Microsoft::WRL::ComPtr;
 #endif // RENDER_D3D12
