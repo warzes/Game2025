@@ -23,6 +23,7 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 	m_numBackBuffers = createInfo.numBackBuffers;
 	m_vSync = createInfo.vSync;
 	m_allowTearing = createInfo.allowTearing;
+	m_RTVStagingDescriptorHeap = createInfo.RTVStagingDescriptorHeap;
 
 	// Determine Swapchain Format based on whether HDR is supported & enabled or not
 	DXGI_FORMAT SwapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -79,7 +80,7 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 	fsSwapChainDesc.Windowed = TRUE;
 
 	ComPtr<IDXGISwapChain1> swapChain1;
-	HRESULT result = createInfo.factory->CreateSwapChainForHwnd(m_presentQueue.Get(), createInfo.windowData->hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
+	HRESULT result = createInfo.factory->CreateSwapChainForHwnd(*m_presentQueue, createInfo.windowData->hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
@@ -109,36 +110,19 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 		EnsureSwapChainColorSpace(createInfo.bitDepth, bIsHDR10Signal);
 	}
 
-	m_currentBackBuffer = m_swapChain->GetCurrentBackBufferIndex();
+	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 
 	// Create Fence & Fence Event
-	D3D12_FENCE_FLAGS FenceFlags = D3D12_FENCE_FLAG_NONE;
-	m_device->CreateFence(m_fenceValues[m_currentBackBuffer], FenceFlags, IID_PPV_ARGS(&m_fence));
-	m_fenceValues[m_currentBackBuffer]++;
-	m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-	if (m_fenceEvent == nullptr)
-	{
-		Fatal(DXErrorToStr(HRESULT_FROM_WIN32(GetLastError())));
-		return false;
-	}
+	if (!m_fence.Create(m_device.Get(), "SwapChain Fence")) return false;
+	m_fenceValues[m_currentBackBufferIndex]++;
 
 	// -- Create the Back Buffers (render target views) Descriptor Heap -- //
 	// describe an rtv descriptor heap and create
-	D3D12_DESCRIPTOR_HEAP_DESC RTVHeapDesc = {};
-	RTVHeapDesc.NumDescriptors = m_numBackBuffers; // number of descriptors for this heap.
-	RTVHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; // this heap is a render target view heap
 
-	// This heap will not be directly referenced by the shaders (not shader visible), as this will store the output from the pipeline otherwise we would set the heap's flag to D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE
-	RTVHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-	ComPtr<ID3D12DescriptorHeap> rtvDescriptorHeap;
-	result = m_device->CreateDescriptorHeap(&RTVHeapDesc, IID_PPV_ARGS(&m_descHeapRTV));
-	if (FAILED(result))
+	for (size_t i = 0; i < m_numBackBuffers; i++)
 	{
-		Fatal("ID3D12Device14::CreateDescriptorHeap() failed: " + DXErrorToStr(result));
-		return false;
+		m_backBuffersDescriptor[i] = m_RTVStagingDescriptorHeap->GetNewDescriptor();
 	}
-	m_descHeapRTV->SetName(L"SwapChainRTVDescHeap");
 
 	// create RTVs if non-fullscreen swapchain
 	if (!createRenderTargetViews())
@@ -155,15 +139,18 @@ void SwapChainD3D12::Destroy()
 
 	WaitForGPU();
 
-	m_fence.Reset();
-	CloseHandle(m_fenceEvent);
+	m_fence.Destroy();
 
 	destroyRenderTargetViews();
-	if (m_descHeapRTV) m_descHeapRTV.Reset(); m_descHeapRTV = nullptr;
+	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
+	{
+		if (m_RTVStagingDescriptorHeap) m_RTVStagingDescriptorHeap->FreeDescriptor(m_backBuffersDescriptor[i]);
+		m_backBuffers[i].Reset();
+	}
 	if (m_swapChain)   m_swapChain.Reset();   m_swapChain = nullptr;
 
 	m_numBackBuffers = 0;
-	m_currentBackBuffer = 0;
+	m_currentBackBufferIndex = 0;
 	m_numTotalFrames = 0;
 	m_vSync = false;
 }
@@ -182,7 +169,7 @@ HRESULT SwapChainD3D12::Resize(int w, int h, DXGI_FORMAT format)
 	{
 		createRenderTargetViews();
 	}
-	m_currentBackBuffer = m_swapChain->GetCurrentBackBufferIndex();
+	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 	m_format = format;
 	return hr;
 }
@@ -213,53 +200,35 @@ HRESULT SwapChainD3D12::Present()
 void SwapChainD3D12::MoveToNextFrame()
 {
 	// Schedule a Signal command in the queue.
-	const UINT64 currentFenceValue = m_fenceValues[m_currentBackBuffer];
-	m_presentQueue->Signal(m_fence.Get(), currentFenceValue);
+	const UINT64 currentFenceValue = m_fenceValues[m_currentBackBufferIndex];
+	m_presentQueue->Signal(m_fence, currentFenceValue);
 
 	// Update the frame index.
-	m_currentBackBuffer = m_swapChain->GetCurrentBackBufferIndex();
+	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 	m_numTotalFrames++;
-
 	// If the next frame is not ready to be rendered yet, wait until it is ready.
-	UINT64 fenceComplVal = m_fence->GetCompletedValue();
-	HRESULT hr = {};
-	if (fenceComplVal < m_fenceValues[m_currentBackBuffer])
-	{
-		SCOPED_CPU_MARKER_C("GPU_BOUND", 0xFF005500);
-		m_fence->SetEventOnCompletion(m_fenceValues[m_currentBackBuffer], m_fenceEvent);
-		hr = WaitForSingleObjectEx(m_fenceEvent, 1000, FALSE);
-	}
-	switch (hr)
-	{
-	case S_OK: break;
-	case WAIT_TIMEOUT:
-		Warning("SwapChain timed out on WaitForGPU(): Signal=" + std::to_string(m_fenceValues[m_currentBackBuffer]) + ", ICurrBackBuffer=" + std::to_string(m_currentBackBuffer) + ", NumFramesPresented=" + std::to_string(GetNumPresentedFrames()));
-		break;
-	default: break;
-	}
-
+	m_fence.WaitOnCPU(m_fenceValues[m_currentBackBufferIndex]);
 	// Set the fence value for the next frame.
-	m_fenceValues[m_currentBackBuffer] = currentFenceValue + 1;
+	m_fenceValues[m_currentBackBufferIndex] = currentFenceValue + 1;
 }
 //=============================================================================
 void SwapChainD3D12::WaitForGPU()
 {
-	ID3D12Fence* pFence;
-	HRESULT hr = m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pFence));
-	if (hr != S_OK)
+	if (m_presentQueue->Get() && m_fence.IsValid())
 	{
-		Fatal("WaitForGPU(): Failed to CreateFence()");
-		return;
+		// Schedule a Signal command in the GPU queue.
+		if (m_presentQueue->Signal(m_fence, m_fenceValues[m_currentBackBufferIndex]))
+		{
+			// Wait until the Signal has been processed.
+			if (SUCCEEDED(m_fence.Get()->SetEventOnCompletion(m_fenceValues[m_currentBackBufferIndex], m_fence.GetEvent())))
+			{
+				std::ignore = WaitForSingleObjectEx(m_fence.GetEvent(), INFINITE, FALSE);
+
+				// Increment the fence value for the current frame.
+				m_fenceValues[m_currentBackBufferIndex]++;
+			}
+		}
 	}
-
-	m_presentQueue->Signal(pFence, 1);
-
-	HANDLE mHandleFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-	pFence->SetEventOnCompletion(1, mHandleFenceEvent);
-	WaitForSingleObject(mHandleFenceEvent, INFINITE);
-	CloseHandle(mHandleFenceEvent);
-
-	pFence->Release();
 }
 //=============================================================================
 void SwapChainD3D12::SetHDRMetaData(ColorSpace colorSpace, float MaxOutputNits, float MinOutputNits, float MaxContentLightLevel, float MaxFrameAverageLightLevel)
@@ -362,22 +331,22 @@ DXGI_OUTPUT_DESC1 SwapChainD3D12::GetContainingMonitorDesc() const
 //=============================================================================
 bool SwapChainD3D12::createRenderTargetViews()
 {
-	const UINT RTVDescSize = m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	D3D12_CPU_DESCRIPTOR_HANDLE hRTV{ m_descHeapRTV->GetCPUDescriptorHandleForHeapStart() };
-
 	HRESULT hr = {};
 	for (int i = 0; i < m_numBackBuffers; i++)
 	{
-		hr = m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_renderTargets[i]));
+		hr = m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_backBuffers[i]));
 		if (FAILED(hr))
 		{
 			Fatal("SwapChain->GetBuffer(" + std::to_string(i) + ", ...) failed");
 			return false;
 		}
 
-		m_device->CreateRenderTargetView(m_renderTargets[i].Get(), nullptr, hRTV);
-		hRTV.ptr += RTVDescSize;
-		SetName(m_renderTargets[i].Get(), "SwapChain::RenderTarget[%d]", i);
+		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+		rtvDesc.Format = m_format;
+		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+
+		m_device->CreateRenderTargetView(m_backBuffers[i].Get(), &rtvDesc, m_backBuffersDescriptor[i].CPUHandle);
+		SetName(m_backBuffers[i].Get(), "SwapChain::RenderTarget[%d]", i);
 	}
 	return true;
 }
@@ -385,11 +354,10 @@ bool SwapChainD3D12::createRenderTargetViews()
 void SwapChainD3D12::destroyRenderTargetViews()
 {
 	for (int i = 0; i < m_numBackBuffers; i++)
-		m_renderTargets[i].Reset();
+		m_backBuffers[i].Reset();
 }
 //=============================================================================
-// To detect HDR support, we will need to check the color space in the primary DXGI output associated with the app at
-// this point in time (using window/display intersection). 
+// To detect HDR support, we will need to check the color space in the primary DXGI output associated with the app at this point in time (using window/display intersection). 
 static inline int ComputeIntersectionArea(int ax1, int ay1, int ax2, int ay2, int bx1, int by1, int bx2, int by2)
 {
 	// Compute the overlay area of two rectangles, A and B.

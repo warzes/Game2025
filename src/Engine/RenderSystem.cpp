@@ -8,7 +8,6 @@ RenderSystem::~RenderSystem()
 bool RenderSystem::Create(const WindowData& wndData, const RenderSystemCreateInfo& createInfo)
 {
 	if (!gRHI.CreateAPI(wndData, createInfo)) return false;
-	LiteFX
 	return true;
 }
 //=============================================================================

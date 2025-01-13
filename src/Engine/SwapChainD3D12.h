@@ -5,6 +5,8 @@
 #include "RHICoreD3D12.h"
 #include "DescriptorHeapD3D12.h"
 #include "HDR.h"
+#include "CommandQueueD3D12.h"
+#include "FenceD3D12.h"
 
 struct WindowData;
 
@@ -20,7 +22,8 @@ struct SwapChainD3D12CreateInfo final
 	WindowData*                windowData{ nullptr };
 	ComPtr<IDXGIFactory7>      factory;
 	ComPtr<ID3D12Device14>     device;
-	ComPtr<ID3D12CommandQueue> cmdQueue;
+	CommandQueueD3D12* cmdQueue;
+	StagingDescriptorHeapD3D12* RTVStagingDescriptorHeap;
 	int                        numBackBuffers{ MAX_BACK_BUFFER_COUNT };
 	bool                       allowTearing{ true };
 	bool                       vSync{ false };
@@ -49,9 +52,9 @@ public:
 	bool IsInitialized() const { return this->m_swapChain != nullptr; }
 
 	auto GetNumBackBuffers() const { return m_numBackBuffers; }
-	auto GetCurrentBackBufferIndex() const { return m_currentBackBuffer; }
-	auto GetCurrentBackBufferRTVHandle() const { return CD3DX12_CPU_DESCRIPTOR_HANDLE(m_descHeapRTV->GetCPUDescriptorHandleForHeapStart(), GetCurrentBackBufferIndex(), m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)); }
-	auto GetCurrentBackBufferRenderTarget() const { return m_renderTargets[GetCurrentBackBufferIndex()].Get(); }
+	auto GetCurrentBackBufferIndex() const { return m_currentBackBufferIndex; }
+	//auto GetCurrentBackBufferRTVHandle() const { return CD3DX12_CPU_DESCRIPTOR_HANDLE(m_descHeapRTV->GetCPUDescriptorHandleForHeapStart(), GetCurrentBackBufferIndex(), m_device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV)); }
+	auto GetCurrentBackBufferRenderTarget() const { return m_backBuffers[GetCurrentBackBufferIndex()].Get(); }
 	auto GetNumPresentedFrames() const { return m_numTotalFrames; }
 	DXGI_OUTPUT_DESC1 GetContainingMonitorDesc() const;
 	auto IsVSyncOn() const { return m_vSync; }
@@ -68,26 +71,24 @@ private:
 	bool createRenderTargetViews();
 	void destroyRenderTargetViews();
 
-	ComPtr<ID3D12Device14>     m_device;
-	ComPtr<ID3D12CommandQueue> m_presentQueue;
-	ComPtr<IDXGISwapChain4>    m_swapChain;
+	ComPtr<ID3D12Device14>  m_device;
+	CommandQueueD3D12*      m_presentQueue;
+	ComPtr<IDXGISwapChain4> m_swapChain;
 
-	DXGI_FORMAT                m_format{ DXGI_FORMAT_UNKNOWN };
-	DXGI_COLOR_SPACE_TYPE      m_colorSpace{ DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709 }; // Rec709 w/ Gamma2.2
-	DXGI_HDR_METADATA_HDR10    m_HDRMetaData;
+	DXGI_FORMAT             m_format{ DXGI_FORMAT_UNKNOWN };
+	DXGI_COLOR_SPACE_TYPE   m_colorSpace{ DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709 }; // Rec709 w/ Gamma2.2
+	DXGI_HDR_METADATA_HDR10 m_HDRMetaData;
 
 	// Synchronization objects
-	ComPtr<ID3D12Fence>             m_fence;
-	uint64_t                        m_fenceValues[MAX_BACK_BUFFER_COUNT] = {};
-	//Microsoft::WRL::Wrappers::Event m_fenceEvent;
-	HANDLE m_fenceEvent;
+	FenceD3D12              m_fence;
+	uint64_t                m_fenceValues[MAX_BACK_BUFFER_COUNT] = {};
 
-	ComPtr<ID3D12Resource>              m_renderTargets[MAX_BACK_BUFFER_COUNT];
-	//StagingDescriptorHeapD3D12*         RTVStagingDescriptorHeap{ nullptr };
-	ComPtr<ID3D12DescriptorHeap>        m_descHeapRTV;
+	ComPtr<ID3D12Resource>      m_backBuffers[MAX_BACK_BUFFER_COUNT];
+	DescriptorD3D12             m_backBuffersDescriptor[MAX_BACK_BUFFER_COUNT];
+	StagingDescriptorHeapD3D12* m_RTVStagingDescriptorHeap{ nullptr };
 
 	unsigned short     m_numBackBuffers{ 0 };
-	unsigned short     m_currentBackBuffer{ 0 };
+	unsigned short     m_currentBackBufferIndex{ 0 };
 	unsigned long long m_numTotalFrames{ 0 };
 	bool               m_vSync{ false };
 	bool               m_allowTearing{ false };

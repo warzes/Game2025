@@ -7,6 +7,7 @@
 #include "DescriptorHeapD3D12.h"
 #include "CommandQueueD3D12.h"
 #include "FenceD3D12.h"
+#include "SwapChainD3D12.h"
 
 struct WindowData;
 struct RenderSystemCreateInfo;
@@ -52,6 +53,7 @@ public:
 
 	RenderFeatures                      supportFeatures{};
 	ContextD3D12                        context;
+	//SwapChainD3D12                      swapChain;
 
 	CommandQueueD3D12                   commandQueue;
 	ComPtr<ID3D12GraphicsCommandList10> commandList;

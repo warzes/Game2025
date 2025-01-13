@@ -26,6 +26,11 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	if (!commandQueue.Create(context.GetD3DDevice(), D3D12_COMMAND_LIST_TYPE_DIRECT, "Main Render Command Queue")) return false;
 	if (!createSwapChain(wndData)) return false;
 	if (!createDescriptorHeap()) return false;
+
+	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
+		backBuffersDescriptor[i] = RTVStagingDescriptorHeap->GetNewDescriptor();
+	depthStencilDescriptor = DSVStagingDescriptorHeap->GetNewDescriptor();
+
 	if (!updateRenderTargetViews()) return false;
 
 	// Create a command allocator for each back buffer that will be rendered to.
@@ -71,6 +76,11 @@ void RHIBackend::DestroyAPI()
 	fence.Destroy();
 
 	destroyRenderTargetViews();
+	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
+	{
+		if (RTVStagingDescriptorHeap) RTVStagingDescriptorHeap->FreeDescriptor(backBuffersDescriptor[i]);
+	}
+	if (DSVStagingDescriptorHeap) DSVStagingDescriptorHeap->FreeDescriptor(depthStencilDescriptor);
 
 	delete RTVStagingDescriptorHeap; RTVStagingDescriptorHeap = nullptr;
 	delete DSVStagingDescriptorHeap; DSVStagingDescriptorHeap = nullptr;
@@ -299,7 +309,6 @@ bool RHIBackend::updateRenderTargetViews()
 {
 	for (uint32_t bufferIndex = 0; bufferIndex < MAX_BACK_BUFFER_COUNT; bufferIndex++)
 	{
-		assert(!backBuffersDescriptor[bufferIndex].IsValid());
 		assert(!backBuffers[bufferIndex]);
 
 		HRESULT result = swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&backBuffers[bufferIndex]));
@@ -316,13 +325,11 @@ bool RHIBackend::updateRenderTargetViews()
 		rtvDesc.Format                        = backBufferFormat; // TODO: DXGI_FORMAT_R8G8B8A8_UNORM_SRGB ???
 		rtvDesc.ViewDimension                 = D3D12_RTV_DIMENSION_TEXTURE2D;
 
-		backBuffersDescriptor[bufferIndex] = RTVStagingDescriptorHeap->GetNewDescriptor();
 		GetD3DDevice()->CreateRenderTargetView(backBuffers[bufferIndex].Get(), &rtvDesc, backBuffersDescriptor[bufferIndex].CPUHandle);
 	}
 
 	if (depthBufferFormat != DXGI_FORMAT_UNKNOWN)
 	{
-		assert(!depthStencilDescriptor.IsValid());
 		assert(!depthStencil);
 
 		// Allocate a 2-D surface as the depth/stencil buffer and create a depth/stencil view on this surface.
@@ -355,8 +362,6 @@ bool RHIBackend::updateRenderTargetViews()
 		dsvDesc.Format                        = depthBufferFormat;
 		dsvDesc.ViewDimension                 = D3D12_DSV_DIMENSION_TEXTURE2D;
 
-		depthStencilDescriptor = DSVStagingDescriptorHeap->GetNewDescriptor();
-
 		GetD3DDevice()->CreateDepthStencilView(depthStencil.Get(), &dsvDesc, depthStencilDescriptor.CPUHandle);
 	}
 
@@ -377,11 +382,8 @@ bool RHIBackend::updateRenderTargetViews()
 void RHIBackend::destroyRenderTargetViews()
 {
 	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
-	{
-		if (RTVStagingDescriptorHeap) RTVStagingDescriptorHeap->FreeDescriptor(backBuffersDescriptor[i]);
 		backBuffers[i].Reset();
-	}
-	if (DSVStagingDescriptorHeap) DSVStagingDescriptorHeap->FreeDescriptor(depthStencilDescriptor);
+
 	depthStencil.Reset();
 }
 //=============================================================================

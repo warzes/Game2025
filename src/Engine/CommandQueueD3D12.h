@@ -12,8 +12,6 @@ public:
 
 	bool Signal(const FenceD3D12& fence, uint64_t FenceWaitValue);
 
-	void WaitOnGPU(const FenceD3D12& fence, uint64_t FenceWaitValue);
-
 	operator ComPtr<ID3D12CommandQueue>() const { return m_queue; }
 	operator ID3D12CommandQueue*() const { return m_queue.Get(); }
 	auto Get() const { return m_queue; }

@@ -3,6 +3,7 @@
 #include "FenceD3D12.h"
 #include "Log.h"
 #include "RHICoreD3D12.h"
+#include "GPUMarker.h"
 //=============================================================================
 bool FenceD3D12::Create(ID3D12Device14* device, const char* debugName)
 {
@@ -19,7 +20,7 @@ bool FenceD3D12::Create(ID3D12Device14* device, const char* debugName)
 	m_event.Attach(CreateEventEx(nullptr, nullptr, 0, EVENT_MODIFY_STATE | SYNCHRONIZE));
 	if (!m_event.IsValid())
 	{
-		Fatal("CreateEventEx() failed.");
+		Fatal("CreateEventEx() failed: " + DXErrorToStr(HRESULT_FROM_WIN32(GetLastError())));
 		return false;
 	}
 
@@ -37,6 +38,7 @@ bool FenceD3D12::WaitOnCPU(uint64_t FenceWaitValue) const
 	// If the next frame is not ready to be rendered yet, wait until it is ready.
 	if (m_fence->GetCompletedValue() < FenceWaitValue)
 	{
+		SCOPED_CPU_MARKER_C("GPU_BOUND", 0xFF005500);
 		HRESULT result = m_fence->SetEventOnCompletion(FenceWaitValue, m_event.Get());
 		if (FAILED(result))
 		{
@@ -44,7 +46,11 @@ bool FenceD3D12::WaitOnCPU(uint64_t FenceWaitValue) const
 			return false;
 		}
 
-		std::ignore = WaitForSingleObjectEx(m_event.Get(), INFINITE, FALSE);
+		result = WaitForSingleObjectEx(m_event.Get(), INFINITE, FALSE);
+		if (result == WAIT_TIMEOUT)
+		{
+			Warning("SwapChain timed out on WaitForGPU(): Signal=" + std::to_string(FenceWaitValue));
+		}
 	}
 	return true;
 }
