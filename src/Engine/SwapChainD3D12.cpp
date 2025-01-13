@@ -12,119 +12,32 @@ SwapChainD3D12::~SwapChainD3D12()
 //=============================================================================
 bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 {
-	assert(createInfo.cmdQueue);
-	assert(createInfo.factory);
+	сбросить переменные в ноль
+	нужно ли переносить сюда вьюпорт и дефбуфер
+
+
+
+	assert(createInfo.RTVStagingDescriptorHeap);
+	assert(createInfo.presentQueue);
 	assert(createInfo.device);
-	assert(createInfo.windowData->hwnd);
+	assert(createInfo.windowData.hwnd);
 	assert(createInfo.numBackBuffers > 0 && createInfo.numBackBuffers <= MAX_BACK_BUFFER_COUNT);
 
 	m_device = createInfo.device;
-	m_presentQueue = createInfo.cmdQueue;
+	m_presentQueue = createInfo.presentQueue;
 	m_numBackBuffers = createInfo.numBackBuffers;
 	m_vSync = createInfo.vSync;
-	m_allowTearing = createInfo.allowTearing;
+	m_allowTearing = createInfo.allowTearing && !m_vSync;
 	m_RTVStagingDescriptorHeap = createInfo.RTVStagingDescriptorHeap;
 
-	// Determine Swapchain Format based on whether HDR is supported & enabled or not
-	DXGI_FORMAT SwapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	if (!createSwapChain(createInfo)) return false;
 
-	// Check HDR support : https://docs.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range
-	const bool bIsHDRCapableDisplayAvailable = checkHDRSupport(createInfo.windowData->hwnd);
-	if (createInfo.HDR)
-	{
-		if (bIsHDRCapableDisplayAvailable)
-		{
-			switch (createInfo.bitDepth)
-			{
-			case SwapChainBitDepth::_10:
-				assert(false); // HDR10 isn't supported for now
-				break;
-			case SwapChainBitDepth::_16:
-				// By default, a swap chain created with a floating point pixel format is treated as if it 
-				// uses the DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709 color space, which is also known as scRGB.
-				SwapChainFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
-				m_colorSpace = DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709; // set mColorSpace value to ensure consistant state
-				break;
-			}
-		}
-		else
-		{
-			Warning("No HDR capable display found! Falling back to SDR swapchain.");
-			SwapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-			m_colorSpace = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
-		}
-	}
+	for (size_t i = 0; i < m_numBackBuffers; i++)
+		m_backBuffersDescriptor[i] = m_RTVStagingDescriptorHeap->GetNewDescriptor();
 
-	// https://docs.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-flip-model
-	// https://docs.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-1-4-improvements
-	// DXGI_SWAP_EFFECT_FLIP_DISCARD    should be preferred when applications fully render over the backbuffer before 
-	//                                  presenting it or are interested in supporting multi-adapter scenarios easily.
-	// DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL should be used by applications that rely on partial presentation optimizations 
-	//                                  or regularly read from previously presented backbuffers.
-	constexpr DXGI_SWAP_EFFECT SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-
-	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	swapChainDesc.Width       = createInfo.windowData->width;
-	swapChainDesc.Height      = createInfo.windowData->height;
-	swapChainDesc.Format      = SwapChainFormat;
-	swapChainDesc.Stereo      = FALSE;
-	swapChainDesc.SampleDesc  = { 1, 0 };
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.BufferCount = createInfo.numBackBuffers;
-	swapChainDesc.Scaling     = DXGI_SCALING_STRETCH;
-	swapChainDesc.SwapEffect  = SwapEffect;
-	swapChainDesc.AlphaMode   = DXGI_ALPHA_MODE_IGNORE;
-	swapChainDesc.Flags = (m_allowTearing && !m_vSync) ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
-
-	DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = {};
-	fsSwapChainDesc.Windowed = TRUE;
-
-	ComPtr<IDXGISwapChain1> swapChain1;
-	HRESULT result = createInfo.factory->CreateSwapChainForHwnd(*m_presentQueue, createInfo.windowData->hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
-	if (FAILED(result))
-	{
-		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
-		return false;
-	}
-	m_format = SwapChainFormat;
-
-	result = createInfo.factory->MakeWindowAssociation(createInfo.windowData->hwnd, DXGI_MWA_NO_ALT_ENTER);
-	if (FAILED(result))
-	{
-		Fatal("IDXGIFactory2::MakeWindowAssociation() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	result = swapChain1.As(&m_swapChain);
-	if (FAILED(result))
-	{
-		Fatal("IDXGISwapChain1::QueryInterface() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	// Set color space for HDR if specified
-	if (createInfo.HDR && bIsHDRCapableDisplayAvailable)
-	{
-		constexpr bool bIsOutputSignalST2084 = false; // output signal type for the HDR10 standard
-		const bool bIsHDR10Signal = createInfo.bitDepth == SwapChainBitDepth::_10 && bIsOutputSignalST2084;
-		EnsureSwapChainColorSpace(createInfo.bitDepth, bIsHDR10Signal);
-	}
-
-	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
-
-	// Create Fence & Fence Event
 	if (!m_fence.Create(m_device.Get(), "SwapChain Fence")) return false;
 	m_fenceValues[m_currentBackBufferIndex]++;
 
-	// -- Create the Back Buffers (render target views) Descriptor Heap -- //
-	// describe an rtv descriptor heap and create
-
-	for (size_t i = 0; i < m_numBackBuffers; i++)
-	{
-		m_backBuffersDescriptor[i] = m_RTVStagingDescriptorHeap->GetNewDescriptor();
-	}
-
-	// create RTVs if non-fullscreen swapchain
 	if (!createRenderTargetViews())
 		return false;
 
@@ -137,8 +50,6 @@ void SwapChainD3D12::Destroy()
 	// Full-screen swap chains continue to have the restriction that  SetFullscreenState(FALSE, NULL) must be called before the final  release of the swap chain. 
 	m_swapChain->SetFullscreenState(FALSE, NULL);
 
-	WaitForGPU();
-
 	m_fence.Destroy();
 
 	destroyRenderTargetViews();
@@ -147,7 +58,7 @@ void SwapChainD3D12::Destroy()
 		if (m_RTVStagingDescriptorHeap) m_RTVStagingDescriptorHeap->FreeDescriptor(m_backBuffersDescriptor[i]);
 		m_backBuffers[i].Reset();
 	}
-	if (m_swapChain)   m_swapChain.Reset();   m_swapChain = nullptr;
+	if (m_swapChain) m_swapChain.Reset(); m_swapChain = nullptr;
 
 	m_numBackBuffers = 0;
 	m_currentBackBufferIndex = 0;
@@ -155,46 +66,50 @@ void SwapChainD3D12::Destroy()
 	m_vSync = false;
 }
 //=============================================================================
-HRESULT SwapChainD3D12::Resize(int w, int h, DXGI_FORMAT format)
+bool SwapChainD3D12::Resize(uint32_t width, uint32_t height)
 {
 	destroyRenderTargetViews();
+	// Release resources that are tied to the swap chain and update fence values.
 	for (int i = 0; i < m_numBackBuffers; i++)
-	{
 		m_fenceValues[i] = m_fenceValues[m_swapChain->GetCurrentBackBufferIndex()];
+
+	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
+	HRESULT result = m_swapChain->GetDesc(&swapChainDesc);
+	if (FAILED(result))
+	{
+		Fatal("IDXGISwapChain4::GetDesc() failed: " + DXErrorToStr(result));
+		return false;
 	}
 
-	HRESULT hr = m_swapChain->ResizeBuffers((UINT)m_numBackBuffers, w, h, format, m_vSync ? 0 : (DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING /*| DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH*/)
-	);
-	if (hr == S_OK)
+	result = m_swapChain->ResizeBuffers((UINT)m_numBackBuffers, width, height, swapChainDesc.BufferDesc.Format, swapChainDesc.Flags);
+	if (FAILED(result))
 	{
-		createRenderTargetViews();
+		Fatal("IDXGISwapChain4::ResizeBuffers() failed: " + DXErrorToStr(result));
+		return false;
 	}
+
+	if (!createRenderTargetViews()) return false;
+
 	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
-	m_format = format;
-	return hr;
+	return true;
 }
 //=============================================================================
-HRESULT SwapChainD3D12::Present()
+bool SwapChainD3D12::Present()
 {
-	constexpr UINT VSYNC_INTERVAL = 1;
-
 	// TODO: glitch detection and avoidance
 	// https://docs.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-flip-model#avoiding-detecting-and-recovering-from-glitches
 
-	HRESULT hr = {};
-	UINT FlagPresent = (!m_vSync && m_allowTearing)
-		? DXGI_PRESENT_ALLOW_TEARING // works only in Windowed mode
-		: 0;
+	UINT syncInterval = m_vSync ? 1 : 0;
+	UINT presentFlags = m_allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0;
 
-	if (m_vSync) hr = m_swapChain->Present(VSYNC_INTERVAL, FlagPresent);
-	else         hr = m_swapChain->Present(0, FlagPresent);
-
-	if (hr != S_OK)
+	HRESULT result = m_swapChain->Present(syncInterval, presentFlags);
+	if (FAILED(result))
 	{
-		// TODO: fatal
+		Fatal("IDXGISwapChain4::Present() failed: " + DXErrorToStr(result));
+		return false;
 	}
 
-	return hr;
+	return true;
 }
 //=============================================================================
 void SwapChainD3D12::MoveToNextFrame()
@@ -329,31 +244,124 @@ DXGI_OUTPUT_DESC1 SwapChainD3D12::GetContainingMonitorDesc() const
 	return d;
 }
 //=============================================================================
+bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
+{
+	// Determine Swapchain Format based on whether HDR is supported & enabled or not
+	DXGI_FORMAT swapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+	// Check HDR support : https://docs.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range
+	const bool isHDRCapableDisplayAvailable = checkHDRSupport(createInfo.windowData.hwnd);
+	if (createInfo.HDR)
+	{
+		if (isHDRCapableDisplayAvailable)
+		{
+			switch (createInfo.bitDepth)
+			{
+			case SwapChainBitDepth::_10:
+				assert(false); // HDR10 isn't supported for now
+				break;
+			case SwapChainBitDepth::_16:
+				// By default, a swap chain created with a floating point pixel format is treated as if it  uses the DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709 color space, which is also known as scRGB.
+				swapChainFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+				m_colorSpace = DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709; // set mColorSpace value to ensure consistant state
+				break;
+			}
+		}
+		else
+		{
+			Warning("No HDR capable display found! Falling back to SDR swapchain.");
+			swapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+			m_colorSpace = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+		}
+	}
+
+	// https://docs.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-flip-model
+	// https://docs.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-1-4-improvements
+	// DXGI_SWAP_EFFECT_FLIP_DISCARD    should be preferred when applications fully render over the backbuffer before 
+	//                                  presenting it or are interested in supporting multi-adapter scenarios easily.
+	// DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL should be used by applications that rely on partial presentation optimizations 
+	//                                  or regularly read from previously presented backbuffers.
+	constexpr DXGI_SWAP_EFFECT swapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+	swapChainDesc.Width                 = createInfo.windowData.width;
+	swapChainDesc.Height                = createInfo.windowData.height;
+	swapChainDesc.Format                = swapChainFormat;
+	swapChainDesc.Stereo                = FALSE;
+	swapChainDesc.SampleDesc            = { 1, 0 };
+	swapChainDesc.BufferUsage           = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	swapChainDesc.BufferCount           = createInfo.numBackBuffers;
+	swapChainDesc.Scaling               = DXGI_SCALING_STRETCH;
+	swapChainDesc.SwapEffect            = swapEffect;
+	swapChainDesc.AlphaMode             = DXGI_ALPHA_MODE_IGNORE;
+	swapChainDesc.Flags = m_allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+
+	DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = {};
+	fsSwapChainDesc.Windowed = TRUE;
+
+	ComPtr<IDXGISwapChain1> swapChain1;
+	HRESULT result = createInfo.factory->CreateSwapChainForHwnd(*m_presentQueue, createInfo.windowData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
+	if (FAILED(result))
+	{
+		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
+		return false;
+	}
+	m_backBufferFormat = swapChainFormat;
+
+	result = createInfo.factory->MakeWindowAssociation(createInfo.windowData.hwnd, DXGI_MWA_NO_ALT_ENTER);
+	if (FAILED(result))
+	{
+		Fatal("IDXGIFactory2::MakeWindowAssociation() failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	result = swapChain1.As(&m_swapChain);
+	if (FAILED(result))
+	{
+		Fatal("IDXGISwapChain1::QueryInterface() failed: " + DXErrorToStr(result));
+		return false;
+	}
+
+	// Set color space for HDR if specified
+	if (createInfo.HDR && isHDRCapableDisplayAvailable)
+	{
+		constexpr bool isOutputSignalST2084 = false; // output signal type for the HDR10 standard
+		const bool isHDR10Signal = createInfo.bitDepth == SwapChainBitDepth::_10 && isOutputSignalST2084;
+		EnsureSwapChainColorSpace(createInfo.bitDepth, isHDR10Signal);
+	}
+
+	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+	return true;
+}
+//=============================================================================
 bool SwapChainD3D12::createRenderTargetViews()
 {
-	HRESULT hr = {};
-	for (int i = 0; i < m_numBackBuffers; i++)
+	HRESULT result = {};
+	for (int bufferIndex = 0; bufferIndex < m_numBackBuffers; bufferIndex++)
 	{
-		hr = m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_backBuffers[i]));
-		if (FAILED(hr))
+		assert(!m_backBuffers[bufferIndex]);
+
+		result = m_swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&m_backBuffers[bufferIndex]));
+		if (FAILED(result))
 		{
-			Fatal("SwapChain->GetBuffer(" + std::to_string(i) + ", ...) failed");
+			Fatal("IDXGISwapChain4->GetBuffer(" + std::to_string(bufferIndex) + ") failed: " + DXErrorToStr(result));
 			return false;
 		}
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-		rtvDesc.Format = m_format;
+		rtvDesc.Format = m_backBufferFormat;
 		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
-		m_device->CreateRenderTargetView(m_backBuffers[i].Get(), &rtvDesc, m_backBuffersDescriptor[i].CPUHandle);
-		SetName(m_backBuffers[i].Get(), "SwapChain::RenderTarget[%d]", i);
+		m_device->CreateRenderTargetView(m_backBuffers[bufferIndex].Get(), &rtvDesc, m_backBuffersDescriptor[bufferIndex].CPUHandle);
+		SetName(m_backBuffers[bufferIndex].Get(), "SwapChain::RenderTarget[%d]", bufferIndex);
 	}
 	return true;
 }
 //=============================================================================
 void SwapChainD3D12::destroyRenderTargetViews()
 {
-	for (int i = 0; i < m_numBackBuffers; i++)
+	for (int i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
 		m_backBuffers[i].Reset();
 }
 //=============================================================================

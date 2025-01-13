@@ -40,7 +40,6 @@ public:
 	Descriptor& GetImguiDescriptor(uint32_t index) { return ImguiDescriptors[index]; }
 	UploadCommandContextD3D12& GetUploadContextForCurrentFrame() { return *uploadContexts[currentBackBufferIndex]; }
 
-	RenderFeatures               supportFeatures{};
 	ComPtr<IDXGIAdapter4>        adapter{ nullptr };
 	ComPtr<ID3D12Device14>       device{ nullptr };
 	ComPtr<D3D12MA::Allocator>   allocator{ nullptr };

@@ -11,11 +11,6 @@ constexpr uint32_t NUM_SRV_STAGING_DESCRIPTORS = 4096;
 
 constexpr uint32_t INVALID_RESOURCE_TABLE_INDEX = UINT_MAX;
 
-struct RenderFeatures final
-{
-	bool allowTearing{ false };
-};
-
 const std::string DXErrorToStr(HRESULT hr);
 const std::string ConvertToStr(D3D_FEATURE_LEVEL level);
 

@@ -113,7 +113,7 @@ void ExampleRender004()
 			psoDesc.SampleMask = UINT_MAX;
 			psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 			psoDesc.NumRenderTargets = 1;
-			psoDesc.RTVFormats[0] = gRHI.backBufferFormat;
+			psoDesc.RTVFormats[0] = gRHI.GetBackBufferFormat();
 			psoDesc.SampleDesc.Count = 1;
 			gRHI.GetD3DDevice()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pipelineState));
 		}

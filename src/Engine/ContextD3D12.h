@@ -28,7 +28,8 @@ public:
 
 	auto GetD3DFactory() { return m_factory; }
 	auto GetD3DAdapter() { return m_adapter; }
-	auto GetD3DDevice() const noexcept { return m_device.Get(); }
+	auto GetD3DDevice() const noexcept { return m_device; }
+	auto GetD3DDeviceRef() const noexcept { return m_device.Get(); }
 
 	bool IsSupportAllowTearing() const { return m_supportAllowTearing; }
 

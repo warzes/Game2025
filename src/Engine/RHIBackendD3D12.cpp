@@ -19,17 +19,20 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 {
 	resetVal();
 	setSize(wndData.width, wndData.height);
-	vsync = createInfo.vsync;
 
 	if (!context.Create(createInfo.context)) return false;
-	supportFeatures.allowTearing = context.IsSupportAllowTearing();
-	if (!commandQueue.Create(context.GetD3DDevice(), D3D12_COMMAND_LIST_TYPE_DIRECT, "Main Render Command Queue")) return false;
-	if (!createSwapChain(wndData)) return false;
+	if (!commandQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_DIRECT, "Main Render Command Queue")) return false;
 	if (!createDescriptorHeap()) return false;
-
-	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
-		backBuffersDescriptor[i] = RTVStagingDescriptorHeap->GetNewDescriptor();
 	depthStencilDescriptor = DSVStagingDescriptorHeap->GetNewDescriptor();
+
+	SwapChainD3D12CreateInfo swapChainCreateInfo = { .windowData = wndData };
+	swapChainCreateInfo.factory = context.GetD3DFactory();
+	swapChainCreateInfo.device = context.GetD3DDevice();
+	swapChainCreateInfo.presentQueue = &commandQueue;
+	swapChainCreateInfo.RTVStagingDescriptorHeap = RTVStagingDescriptorHeap;
+	swapChainCreateInfo.allowTearing = context.IsSupportAllowTearing();
+	swapChainCreateInfo.vSync = createInfo.vsync;
+	if (!swapChain.Create(swapChainCreateInfo)) return false;
 
 	if (!updateRenderTargetViews()) return false;
 
@@ -46,10 +49,6 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 		swprintf_s(name, L"Render target %u", i);
 		commandAllocators[i]->SetName(name);
 	}
-
-	// Create a fence for tracking GPU execution progress.
-	if (!fence.Create(context.GetD3DDevice(), "Main Render Fence")) return false;
-	fenceValues[currentBackBufferIndex]++;
 
 	// Create a command list for recording graphics commands.
 	HRESULT result = GetD3DDevice()->CreateCommandList1(0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&commandList));
@@ -68,29 +67,22 @@ void RHIBackend::DestroyAPI()
 
 	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
 	{
-		fenceValues[i] = 0;
 		commandAllocators[i].Reset();
 	}
 	commandList.Reset();
 	commandQueue.Destroy();
-	fence.Destroy();
 
 	destroyRenderTargetViews();
-	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
-	{
-		if (RTVStagingDescriptorHeap) RTVStagingDescriptorHeap->FreeDescriptor(backBuffersDescriptor[i]);
-	}
 	if (DSVStagingDescriptorHeap) DSVStagingDescriptorHeap->FreeDescriptor(depthStencilDescriptor);
+
+	swapChain.Destroy();
 
 	delete RTVStagingDescriptorHeap; RTVStagingDescriptorHeap = nullptr;
 	delete DSVStagingDescriptorHeap; DSVStagingDescriptorHeap = nullptr;
 	delete CBVSRVUAVStagingDescriptorHeap; CBVSRVUAVStagingDescriptorHeap = nullptr;
 
-	currentBackBufferIndex = 0;
 	frameBufferWidth = 0;
 	frameBufferHeight = 0;
-
-	swapChain.Reset();
 
 	context.Destroy();
 }
@@ -103,30 +95,8 @@ void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 	WaitForGpu();
 
 	destroyRenderTargetViews();
-
-	// Release resources that are tied to the swap chain and update fence values.
-	for (UINT n = 0; n < MAX_BACK_BUFFER_COUNT; n++)
-	{
-		fenceValues[n] = fenceValues[currentBackBufferIndex];
-	}
-
-	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-	HRESULT result = swapChain->GetDesc(&swapChainDesc);
-	if (FAILED(result))
-	{
-		Fatal("IDXGISwapChain4::GetDesc() failed: " + DXErrorToStr(result));
-		return;
-	}
-	
-	result = swapChain->ResizeBuffers(MAX_BACK_BUFFER_COUNT, frameBufferWidth, frameBufferHeight, swapChainDesc.BufferDesc.Format, swapChainDesc.Flags);
-	if (FAILED(result))
-	{
-		Fatal("IDXGISwapChain4::ResizeBuffers() failed: " + DXErrorToStr(result));
-		return;
-	}
+	if (!swapChain.Resize(width, height)) return;
 	updateRenderTargetViews();
-
-	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
 
 	Print("Window Resize: " + std::to_string(width) + "." + std::to_string(height));
 }
@@ -142,14 +112,14 @@ void RHIBackend::EndFrame()
 void RHIBackend::Prepare(D3D12_RESOURCE_STATES beforeState, D3D12_RESOURCE_STATES afterState)
 {
 	// Reset command list and allocator.
-	HRESULT result = commandAllocators[currentBackBufferIndex]->Reset();
+	HRESULT result = commandAllocators[swapChain.GetCurrentBackBufferIndex()]->Reset();
 	if (FAILED(result))
 	{
 		Fatal("ID3D12CommandAllocator::Reset() failed: " + DXErrorToStr(result));
 		return;
 	}
 
-	result = commandList->Reset(commandAllocators[currentBackBufferIndex].Get(), nullptr);
+	result = commandList->Reset(commandAllocators[swapChain.GetCurrentBackBufferIndex()].Get(), nullptr);
 	if (FAILED(result))
 	{
 		Fatal("ID3D12GraphicsCommandList10::Reset() failed: " + DXErrorToStr(result));
@@ -158,8 +128,7 @@ void RHIBackend::Prepare(D3D12_RESOURCE_STATES beforeState, D3D12_RESOURCE_STATE
 
 	if (beforeState != afterState)
 	{
-		const D3D12_RESOURCE_BARRIER barrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(
-			backBuffers[currentBackBufferIndex].Get(),
+		const D3D12_RESOURCE_BARRIER barrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(swapChain.GetCurrentBackBufferRenderTarget(),
 			beforeState, afterState);
 		commandList->ResourceBarrier(1, &barrierRTV);
 	}
@@ -171,7 +140,7 @@ void RHIBackend::Present(D3D12_RESOURCE_STATES beforeState)
 	{
 		// Transition the render target to the state that allows it to be presented to the display.
 		const D3D12_RESOURCE_BARRIER barrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(
-			backBuffers[currentBackBufferIndex].Get(),
+			swapChain.GetCurrentBackBufferRenderTarget(),
 			beforeState, D3D12_RESOURCE_STATE_PRESENT);
 		commandList->ResourceBarrier(1, &barrierRTV);
 	}
@@ -185,42 +154,18 @@ void RHIBackend::Present(D3D12_RESOURCE_STATES beforeState)
 	}
 	commandQueue.Get()->ExecuteCommandLists(1, CommandListCast(commandList.GetAddressOf()));
 
-	UINT syncInterval = vsync ? 1 : 0;
-	UINT presentFlags = supportFeatures.allowTearing && !vsync ? DXGI_PRESENT_ALLOW_TEARING : 0;
-	result = swapChain->Present(syncInterval, presentFlags);
-	if (FAILED(result))
-	{
-		Fatal("IDXGISwapChain4::Present() failed: " + DXErrorToStr(result));
-	}
+	swapChain.Present();
 
 	moveToNextFrame();
 }
 //=============================================================================
 void RHIBackend::WaitForGpu()
 {
-	if (commandQueue.Get() && fence.IsValid())
-	{
-		// Schedule a Signal command in the GPU queue.
-		if (commandQueue.Signal(fence, fenceValues[currentBackBufferIndex]))
-		{
-			// Wait until the Signal has been processed.
-			if (SUCCEEDED(fence.Get()->SetEventOnCompletion(fenceValues[currentBackBufferIndex], fence.GetEvent())))
-			{
-				std::ignore = WaitForSingleObjectEx(fence.GetEvent(), INFINITE, FALSE);
-
-				// Increment the fence value for the current frame.
-				fenceValues[currentBackBufferIndex]++;
-			}
-		}
-	}
+	swapChain.WaitForGPU();
 }
 //=============================================================================
 void RHIBackend::resetVal()
 {
-	supportFeatures = {};
-	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
-		fenceValues[i] = 0;
-	currentBackBufferIndex = 0;
 	frameBufferWidth = 0;
 	frameBufferHeight = 0;
 }
@@ -260,74 +205,8 @@ bool RHIBackend::createDescriptorHeap()
 	return true;
 }
 //=============================================================================
-bool RHIBackend::createSwapChain(const WindowData& wndData)
-{
-	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	swapChainDesc.Width                 = wndData.width;
-	swapChainDesc.Height                = wndData.height;
-	swapChainDesc.Format                = backBufferFormat;
-	swapChainDesc.Stereo                = FALSE;
-	swapChainDesc.SampleDesc            = { 1, 0 };
-	swapChainDesc.BufferUsage           = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.BufferCount           = MAX_BACK_BUFFER_COUNT;
-	swapChainDesc.Scaling               = DXGI_SCALING_STRETCH;
-	swapChainDesc.SwapEffect            = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	swapChainDesc.AlphaMode             = DXGI_ALPHA_MODE_IGNORE;
-	swapChainDesc.Flags = supportFeatures.allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
-
-	DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = {};
-	fsSwapChainDesc.Windowed = TRUE;
-
-	ComPtr<IDXGISwapChain1> swapChain1;
-	HRESULT result = context.GetD3DFactory()->CreateSwapChainForHwnd(commandQueue, wndData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
-	if (FAILED(result))
-	{
-		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	result = context.GetD3DFactory()->MakeWindowAssociation(wndData.hwnd, DXGI_MWA_NO_ALT_ENTER);
-	if (FAILED(result))
-	{
-		Fatal("IDXGIFactory2::MakeWindowAssociation() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	result = swapChain1.As(&swapChain);
-	if (FAILED(result))
-	{
-		Fatal("IDXGISwapChain1::QueryInterface() failed: " + DXErrorToStr(result));
-		return false;
-	}
-
-	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
-
-	return true;
-}
-//=============================================================================
 bool RHIBackend::updateRenderTargetViews()
 {
-	for (uint32_t bufferIndex = 0; bufferIndex < MAX_BACK_BUFFER_COUNT; bufferIndex++)
-	{
-		assert(!backBuffers[bufferIndex]);
-
-		HRESULT result = swapChain->GetBuffer(bufferIndex, IID_PPV_ARGS(&backBuffers[bufferIndex]));
-		if (FAILED(result))
-		{
-			Fatal("IDXGISwapChain4::GetBuffer() failed: " + DXErrorToStr(result));
-			return false;
-		}
-		wchar_t name[25] = {};
-		swprintf_s(name, L"Render target %u", bufferIndex);
-		backBuffers[bufferIndex]->SetName(name);
-
-		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-		rtvDesc.Format                        = backBufferFormat; // TODO: DXGI_FORMAT_R8G8B8A8_UNORM_SRGB ???
-		rtvDesc.ViewDimension                 = D3D12_RTV_DIMENSION_TEXTURE2D;
-
-		GetD3DDevice()->CreateRenderTargetView(backBuffers[bufferIndex].Get(), &rtvDesc, backBuffersDescriptor[bufferIndex].CPUHandle);
-	}
-
 	if (depthBufferFormat != DXGI_FORMAT_UNKNOWN)
 	{
 		assert(!depthStencil);
@@ -381,24 +260,12 @@ bool RHIBackend::updateRenderTargetViews()
 //=============================================================================
 void RHIBackend::destroyRenderTargetViews()
 {
-	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
-		backBuffers[i].Reset();
-
 	depthStencil.Reset();
 }
 //=============================================================================
 void RHIBackend::moveToNextFrame()
 {
-	// Schedule a Signal command in the queue.
-	const UINT64 currentFenceValue = fenceValues[currentBackBufferIndex];
-	commandQueue.Signal(fence, currentFenceValue);
-
-	// Update the back buffer index.
-	currentBackBufferIndex = swapChain->GetCurrentBackBufferIndex();
-	// If the next frame is not ready to be rendered yet, wait until it is ready.
-	fence.WaitOnCPU(fenceValues[currentBackBufferIndex]);
-	// Set the fence value for the next frame.
-	fenceValues[currentBackBufferIndex] = currentFenceValue + 1;
+	swapChain.MoveToNextFrame();
 }
 //=============================================================================
 #endif // RENDER_D3D12

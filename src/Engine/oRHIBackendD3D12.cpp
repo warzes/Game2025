@@ -316,14 +316,14 @@ bool oRHIBackend::createAdapter()
 		return false;
 	}
 
-	{
-		// при отключении vsync на экране могут быть разрывы
-		BOOL allowTearing = FALSE;
-		if (FAILED(DXGIFactory7->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
-			supportFeatures.allowTearing = false;
-		else
-			supportFeatures.allowTearing = (allowTearing == TRUE);
-	}
+	//{
+	//	// при отключении vsync на экране могут быть разрывы
+	//	BOOL allowTearing = FALSE;
+	//	if (FAILED(DXGIFactory7->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
+	//		supportFeatures.allowTearing = false;
+	//	else
+	//		supportFeatures.allowTearing = (allowTearing == TRUE);
+	//}
 
 	ComPtr<IDXGIAdapter> DXGIAdapter;
 	result = DXGIFactory7->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&DXGIAdapter));
@@ -499,7 +499,7 @@ bool oRHIBackend::createSwapChain(const WindowData& wndData)
 	swapChainDesc.Scaling               = DXGI_SCALING_STRETCH;
 	swapChainDesc.AlphaMode             = DXGI_ALPHA_MODE_UNSPECIFIED;
 	// It is recommended to always allow tearing if tearing support is available.
-	swapChainDesc.Flags = supportFeatures.allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+	swapChainDesc.Flags =  0;
 
 	ComPtr<IDXGISwapChain1> swapChain1;
 	result = DXGIFactory->CreateSwapChainForHwnd(graphicsQueue->GetDeviceQueue().Get(), wndData.hwnd, &swapChainDesc, nullptr, nullptr, &swapChain1);

@@ -12,34 +12,42 @@ void GameApp()
 		{
 			engine.BeginFrame();
 
-			auto commandAllocator = gRHI.commandAllocators[gRHI.currentBackBufferIndex];
-			auto backBuffer = gRHI.backBuffers[gRHI.currentBackBufferIndex];
-
-			// Reset command list and allocator.
-			commandAllocator->Reset();
-			gRHI.commandList->Reset(commandAllocator.Get(), nullptr);
-
-			// Clear the render target.
+			// Render
 			{
-				FLOAT clearColor[] = { 0.4f, 0.6f, 0.9f, 1.0f };
+				gRHI.Prepare();
 
-				const CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(backBuffer.Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-				gRHI.commandList->ResourceBarrier(1, &barrier);
+				// Clear the render target.
+				{
+					const FLOAT clearColor[] = { 0.4f, 0.6f, 0.9f, 1.0f };
+					auto commandList = gRHI.GetCommandList();
+					const auto rtvDescriptor = gRHI.GetRenderTargetView();
+					const auto dsvDescriptor = gRHI.GetDepthStencilView();
+					const auto viewport = gRHI.GetScreenViewport();
+					const auto scissorRect = gRHI.GetScissorRect();
 
-				auto rtvDescriptor = gRHI.backBuffersDescriptor[gRHI.currentBackBufferIndex].CPUHandle;
-				auto dsvDescriptor = gRHI.depthStencilDescriptor.CPUHandle;
-				gRHI.commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
-				gRHI.commandList->ClearRenderTargetView(rtvDescriptor, clearColor, 0, nullptr);
-				gRHI.commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+					PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Clear");
 
-				// Set the viewport and scissor rect.
-				const D3D12_VIEWPORT viewport = { 0.0f, 0.0f, static_cast<float>(gRHI.frameBufferWidth), static_cast<float>(gRHI.frameBufferHeight), D3D12_MIN_DEPTH, D3D12_MAX_DEPTH };
-				const D3D12_RECT scissorRect = { 0, 0, static_cast<LONG>(gRHI.frameBufferWidth), static_cast<LONG>(gRHI.frameBufferHeight) };
-				gRHI.commandList->RSSetViewports(1, &viewport);
-				gRHI.commandList->RSSetScissorRects(1, &scissorRect);
+					commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
+					commandList->ClearRenderTargetView(rtvDescriptor, clearColor, 0, nullptr);
+					commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+					commandList->RSSetViewports(1, &viewport);
+					commandList->RSSetScissorRects(1, &scissorRect);
+
+					PIXEndEvent(commandList);
+				}
+
+				auto commandList = gRHI.GetCommandList();
+				PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Render");
+				{
+					// TODO: Add your rendering code here.
+				}
+				PIXEndEvent(commandList);
+
+				PIXBeginEvent(PIX_COLOR_DEFAULT, L"Present");
+				gRHI.Present();
+				PIXEndEvent();
 			}
 
-			gRHI.Present();
 			engine.EndFrame();
 		}
 	}
