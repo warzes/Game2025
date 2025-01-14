@@ -78,7 +78,7 @@
       <Filter>RHI\Direct3D12\Base</Filter>
     </ClCompile>
     <ClCompile Include="GPUMarker.cpp">
-      <Filter>RHI</Filter>
+      <Filter>RHI\Utility</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -186,7 +186,7 @@
       <Filter>RHI\Direct3D12\Base</Filter>
     </ClInclude>
     <ClInclude Include="GPUMarker.h">
-      <Filter>RHI</Filter>
+      <Filter>RHI\Utility</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

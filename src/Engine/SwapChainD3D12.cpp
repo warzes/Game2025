@@ -12,63 +12,78 @@ SwapChainD3D12::~SwapChainD3D12()
 //=============================================================================
 bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 {
-	сбросить переменные в ноль
-	нужно ли переносить сюда вьюпорт и дефбуфер
+	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
+		m_fenceValues[i] = 0;
+	m_numBackBuffers = 0;
+	m_currentBackBufferIndex = 0;
+	m_numTotalFrames = 0;
 
-
-
-	assert(createInfo.RTVStagingDescriptorHeap);
-	assert(createInfo.presentQueue);
+	assert(createInfo.factory);
 	assert(createInfo.device);
+	assert(createInfo.allocator);
+	assert(createInfo.presentQueue);
+	assert(createInfo.RTVStagingDescriptorHeap);
+	assert(createInfo.DSVStagingDescriptorHeap);
 	assert(createInfo.windowData.hwnd);
 	assert(createInfo.numBackBuffers > 0 && createInfo.numBackBuffers <= MAX_BACK_BUFFER_COUNT);
 
-	m_device = createInfo.device;
-	m_presentQueue = createInfo.presentQueue;
-	m_numBackBuffers = createInfo.numBackBuffers;
-	m_vSync = createInfo.vSync;
-	m_allowTearing = createInfo.allowTearing && !m_vSync;
+	m_device                   = createInfo.device;
+	m_allocator                = createInfo.allocator;
+	m_presentQueue             = createInfo.presentQueue;
 	m_RTVStagingDescriptorHeap = createInfo.RTVStagingDescriptorHeap;
+	m_DSVStagingDescriptorHeap = createInfo.DSVStagingDescriptorHeap;
+	m_numBackBuffers           = createInfo.numBackBuffers;
+	m_vSync                    = createInfo.vSync;
+	m_allowTearing             = createInfo.allowTearing && !m_vSync;
 
 	if (!createSwapChain(createInfo)) return false;
 
 	for (size_t i = 0; i < m_numBackBuffers; i++)
 		m_backBuffersDescriptor[i] = m_RTVStagingDescriptorHeap->GetNewDescriptor();
 
+	m_depthStencilDescriptor = m_DSVStagingDescriptorHeap->GetNewDescriptor();
+
 	if (!m_fence.Create(m_device.Get(), "SwapChain Fence")) return false;
 	m_fenceValues[m_currentBackBufferIndex]++;
 
-	if (!createRenderTargetViews())
-		return false;
+	if (!createRenderTargetViews()) return false;
+	if (!createDepthStencilViews(createInfo.windowData.width, createInfo.windowData.height)) return false;
 
 	return true;
 }
 //=============================================================================
 void SwapChainD3D12::Destroy()
 {
+	WaitForGPU();
 	// https://docs.microsoft.com/en-us/windows/win32/direct3d12/swap-chains
-	// Full-screen swap chains continue to have the restriction that  SetFullscreenState(FALSE, NULL) must be called before the final  release of the swap chain. 
-	m_swapChain->SetFullscreenState(FALSE, NULL);
-
-	m_fence.Destroy();
+	// Full-screen swap chains continue to have the restriction that SetFullscreenState(FALSE, nullptr) must be called before the final release of the swap chain.
+	if (m_swapChain) m_swapChain->SetFullscreenState(FALSE, nullptr);
 
 	destroyRenderTargetViews();
+	destroyDepthStencilViews();
 	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
 	{
 		if (m_RTVStagingDescriptorHeap) m_RTVStagingDescriptorHeap->FreeDescriptor(m_backBuffersDescriptor[i]);
 		m_backBuffers[i].Reset();
 	}
-	if (m_swapChain) m_swapChain.Reset(); m_swapChain = nullptr;
+	if (m_DSVStagingDescriptorHeap) m_DSVStagingDescriptorHeap->FreeDescriptor(m_depthStencilDescriptor);
 
-	m_numBackBuffers = 0;
-	m_currentBackBufferIndex = 0;
-	m_numTotalFrames = 0;
-	m_vSync = false;
+	m_fence.Destroy();
+	m_swapChain.Reset();
+	m_device.Reset();
 }
 //=============================================================================
 bool SwapChainD3D12::Resize(uint32_t width, uint32_t height)
 {
+	if (!m_swapChain)
+	{
+		Fatal("SwapChain is null!!!");
+		return false;
+	}
+
+	WaitForGPU();
 	destroyRenderTargetViews();
+	destroyDepthStencilViews();
 	// Release resources that are tied to the swap chain and update fence values.
 	for (int i = 0; i < m_numBackBuffers; i++)
 		m_fenceValues[i] = m_fenceValues[m_swapChain->GetCurrentBackBufferIndex()];
@@ -89,6 +104,7 @@ bool SwapChainD3D12::Resize(uint32_t width, uint32_t height)
 	}
 
 	if (!createRenderTargetViews()) return false;
+	if (!createDepthStencilViews(width, height)) return false;
 
 	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 	return true;
@@ -224,8 +240,7 @@ DXGI_OUTPUT_DESC1 SwapChainD3D12::GetContainingMonitorDesc() const
 {
 	DXGI_OUTPUT_DESC1 d = {};
 
-	// Figure out which monitor swapchain is in
-	// and set the mode we want to use for ResizeTarget().
+	// Figure out which monitor swapChain is in and set the mode we want to use for ResizeTarget().
 	IDXGIOutput6* pOut = nullptr;
 	{
 		IDXGIOutput* pOutput = nullptr;
@@ -246,11 +261,11 @@ DXGI_OUTPUT_DESC1 SwapChainD3D12::GetContainingMonitorDesc() const
 //=============================================================================
 bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 {
-	// Determine Swapchain Format based on whether HDR is supported & enabled or not
+	// Determine SwapChain Format based on whether HDR is supported & enabled or not
 	DXGI_FORMAT swapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 	// Check HDR support : https://docs.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range
-	const bool isHDRCapableDisplayAvailable = checkHDRSupport(createInfo.windowData.hwnd);
+	const bool isHDRCapableDisplayAvailable = checkHDRSupport(createInfo.windowData.hwnd, createInfo.factory);
 	if (createInfo.HDR)
 	{
 		if (isHDRCapableDisplayAvailable)
@@ -258,7 +273,8 @@ bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 			switch (createInfo.bitDepth)
 			{
 			case SwapChainBitDepth::_10:
-				assert(false); // HDR10 isn't supported for now
+				Fatal("HDR10 isn't supported for now");
+				return false;
 				break;
 			case SwapChainBitDepth::_16:
 				// By default, a swap chain created with a floating point pixel format is treated as if it  uses the DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709 color space, which is also known as scRGB.
@@ -359,14 +375,92 @@ bool SwapChainD3D12::createRenderTargetViews()
 	return true;
 }
 //=============================================================================
+bool SwapChainD3D12::createDepthStencilViews(uint32_t width, uint32_t height)
+{
+	if (m_depthBufferFormat != DXGI_FORMAT_UNKNOWN)
+	{
+		assert(!m_depthStencil);
+
+		D3D12MA::ALLOCATION_DESC depthStencilAllocDesc = {};
+		depthStencilAllocDesc.HeapType                 = D3D12_HEAP_TYPE_DEFAULT;
+
+		D3D12_RESOURCE_DESC depthStencilResourceDesc = {};
+		depthStencilResourceDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		depthStencilResourceDesc.Alignment           = 0;
+		depthStencilResourceDesc.Width               = width;
+		depthStencilResourceDesc.Height              = height;
+		depthStencilResourceDesc.DepthOrArraySize    = 1;
+		depthStencilResourceDesc.MipLevels           = 1;
+		depthStencilResourceDesc.Format              = m_depthBufferFormat;
+		depthStencilResourceDesc.SampleDesc          = { 1, 0 };
+		depthStencilResourceDesc.Layout              = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		depthStencilResourceDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+		D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
+		depthOptimizedClearValue.Format            = m_depthBufferFormat;
+		depthOptimizedClearValue.DepthStencil      = { 1.0f, 0 };
+
+		HRESULT result = m_allocator->CreateResource(&depthStencilAllocDesc, &depthStencilResourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, &m_depthStencilAllocation, IID_PPV_ARGS(&m_depthStencil));
+		if (FAILED(result))
+		{
+			Fatal("D3D12MA::Allocator::CreateResource() failed: " + DXErrorToStr(result));
+			return false;
+		}
+		m_depthStencil->SetName(L"Depth/Stencil Resource Heap");
+		m_depthStencilAllocation->SetName(L"Depth/Stencil Resource Heap");
+
+		...
+
+
+		// Allocate a 2-D surface as the depth/stencil buffer and create a depth/stencil view on this surface.
+		const CD3DX12_HEAP_PROPERTIES depthHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
+
+		const D3D12_RESOURCE_DESC depthStencilDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+			m_depthBufferFormat, width, height, 1, 0, 1, 0,
+			D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL
+		);
+
+		//const CD3DX12_CLEAR_VALUE depthOptimizedClearValue(m_depthBufferFormat, 1.0f, 0u);
+
+		HRESULT result = m_device->CreateCommittedResource(
+			&depthHeapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&depthStencilDesc,
+			D3D12_RESOURCE_STATE_DEPTH_WRITE,
+			&depthOptimizedClearValue,
+			IID_PPV_ARGS(m_depthStencil.ReleaseAndGetAddressOf())
+		);
+		if (FAILED(result))
+		{
+			Fatal("ID3D12Device14::CreateCommittedResource() failed: " + DXErrorToStr(result));
+			return false;
+		}
+
+		m_depthStencil->SetName(L"Depth stencil");
+
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+		dsvDesc.Format = m_depthBufferFormat;
+		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+
+		m_device->CreateDepthStencilView(m_depthStencil.Get(), &dsvDesc, m_depthStencilDescriptor.CPUHandle);
+	}
+
+	return true;
+}
+//=============================================================================
 void SwapChainD3D12::destroyRenderTargetViews()
 {
 	for (int i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
 		m_backBuffers[i].Reset();
 }
 //=============================================================================
+void SwapChainD3D12::destroyDepthStencilViews()
+{
+	m_depthStencil.Reset();
+}
+//=============================================================================
 // To detect HDR support, we will need to check the color space in the primary DXGI output associated with the app at this point in time (using window/display intersection). 
-static inline int ComputeIntersectionArea(int ax1, int ay1, int ax2, int ay2, int bx1, int by1, int bx2, int by2)
+inline int ComputeIntersectionArea(int ax1, int ay1, int ax2, int ay2, int bx1, int by1, int bx2, int by2)
 {
 	// Compute the overlay area of two rectangles, A and B.
 	// (ax1, ay1) = left-top coordinates of A; (ax2, ay2) = right-bottom coordinates of A
@@ -374,25 +468,13 @@ static inline int ComputeIntersectionArea(int ax1, int ay1, int ax2, int ay2, in
 	return std::max(0, std::min(ax2, bx2) - std::max(ax1, bx1)) * std::max(0, std::min(ay2, by2) - std::max(ay1, by1));
 }
 //=============================================================================
-bool SwapChainD3D12::checkHDRSupport(HWND hwnd)
+bool SwapChainD3D12::checkHDRSupport(HWND hwnd, ComPtr<IDXGIFactory7> factory)
 {
-	auto fnThrowIfFailed = [](HRESULT hr)
-		{
-			if (FAILED(hr))
-			{
-				assert(false);// throw HrException(hr);
-			}
-		};
-
 	RECT windowRect = {};
 	GetWindowRect(hwnd, &windowRect);
 
-	using namespace Microsoft::WRL;
-	ComPtr<IDXGIFactory6> m_dxgiFactory;
-	fnThrowIfFailed(CreateDXGIFactory2(0, IID_PPV_ARGS(&m_dxgiFactory)));
-
 	// From D3D12HDR: 
-	// First, the method must determine the app's current display. 
+	// First, the method must determine the app's current display.
 	// We don't recommend using IDXGISwapChain::GetContainingOutput method to do that because of two reasons:
 	//    1. Swap chains created with CreateSwapChainForComposition do not support this method.
 	//    2. Swap chains will return a stale dxgi output once DXGIFactory::IsCurrent() is false. In addition, 
@@ -400,11 +482,16 @@ bool SwapChainD3D12::checkHDRSupport(HWND hwnd)
 	//       period of black screen.
 	// Instead, we suggest enumerating through the bounds of all dxgi outputs and determine which one has the greatest 
 	// intersection with the app window bounds. Then, use the DXGI output found in previous step to determine if the 
-	// app is on a HDR capable display. 
+	// app is on a HDR capable display.
 
 	// Retrieve the current default adapter.
-	ComPtr<IDXGIAdapter1> dxgiAdapter;
-	fnThrowIfFailed(m_dxgiFactory->EnumAdapters1(0, &dxgiAdapter));
+	ComPtr<IDXGIAdapter1> dxgiAdapter; // TODO: почему берется первый адаптер, а не основной?
+	HRESULT result = factory->EnumAdapters1(0, &dxgiAdapter);
+	if (FAILED(result))
+	{
+		Fatal("IDXGIFactory7::EnumAdapters1() failed: " + DXErrorToStr(result));
+		return false;
+	}
 
 	// Iterate through the DXGI outputs associated with the DXGI adapter,
 	// and find the output whose bounds have the greatest overlap with the
@@ -418,7 +505,7 @@ bool SwapChainD3D12::checkHDRSupport(HWND hwnd)
 
 	while (dxgiAdapter->EnumOutputs(i, &currentOutput) != DXGI_ERROR_NOT_FOUND)
 	{
-		// Get the retangle bounds of the app window
+		// Get the rectangle bounds of the app window
 		int ax1 = windowRect.left;
 		int ay1 = windowRect.top;
 		int ax2 = windowRect.right;
@@ -426,7 +513,12 @@ bool SwapChainD3D12::checkHDRSupport(HWND hwnd)
 
 		// Get the rectangle bounds of current output
 		DXGI_OUTPUT_DESC desc;
-		fnThrowIfFailed(currentOutput->GetDesc(&desc));
+		result = currentOutput->GetDesc(&desc);
+		if (FAILED(result))
+		{
+			Fatal("IDXGIOutput::GetDesc() failed: " + DXErrorToStr(result));
+			return false;
+		}
 		RECT r = desc.DesktopCoordinates;
 		int bx1 = r.left;
 		int by1 = r.top;
@@ -444,13 +536,22 @@ bool SwapChainD3D12::checkHDRSupport(HWND hwnd)
 		i++;
 	}
 
-	// Having determined the output (display) upon which the app is primarily being 
-	// rendered, retrieve the HDR capabilities of that display by checking the color space.
+	// Having determined the output (display) upon which the app is primarily being rendered, retrieve the HDR capabilities of that display by checking the color space.
 	ComPtr<IDXGIOutput6> output6;
-	fnThrowIfFailed(bestOutput.As(&output6));
+	result = bestOutput.As(&output6);
+	if (FAILED(result))
+	{
+		Fatal("IDXGIOutput as IDXGIOutput6 failed: " + DXErrorToStr(result));
+		return false;
+	}
 
 	DXGI_OUTPUT_DESC1 desc1;
-	fnThrowIfFailed(output6->GetDesc1(&desc1));
+	result = output6->GetDesc1(&desc1);
+	if (FAILED(result))
+	{
+		Fatal("IDXGIOutput6::GetDesc1() failed: " + DXErrorToStr(result));
+		return false;
+	}
 
 	return (desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020);
 }

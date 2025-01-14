@@ -41,14 +41,15 @@ private:
 	bool selectAdapter(bool useWarp);
 	bool createDevice();
 	void checkDeviceFeatureSupport();
-	bool createAllocator();
+	bool createAllocator(bool enableCPUAllocationCallbacks);
 
-	ComPtr<IDXGIFactory7>      m_factory;
-	ComPtr<IDXGIAdapter4>      m_adapter;
-	bool                       m_supportAllowTearing{ false };
-	ComPtr<ID3D12Device14>     m_device;
-	ComPtr<D3D12MA::Allocator> m_allocator;
-	DeviceCapabilities         m_deviceCapabilities;
+	ComPtr<IDXGIFactory7>         m_factory;
+	ComPtr<IDXGIAdapter4>         m_adapter;
+	bool                          m_supportAllowTearing{ false };
+	ComPtr<ID3D12Device14>        m_device;
+	ComPtr<D3D12MA::Allocator>    m_allocator;
+	D3D12MA::ALLOCATION_CALLBACKS m_allocationCallbacks = {};
+	DeviceCapabilities            m_deviceCapabilities;
 };
 
 #endif // RENDER_D3D12

@@ -19,16 +19,18 @@ enum class SwapChainBitDepth
 
 struct SwapChainD3D12CreateInfo final
 {
-	const WindowData& windowData;
-	ComPtr<IDXGIFactory7>      factory;
-	ComPtr<ID3D12Device14>     device;
-	CommandQueueD3D12* presentQueue;
-	StagingDescriptorHeapD3D12* RTVStagingDescriptorHeap;
-	int                        numBackBuffers{ MAX_BACK_BUFFER_COUNT };
-	bool                       allowTearing{ true };
-	bool                       vSync{ false };
-	bool                       HDR{ false };
-	SwapChainBitDepth          bitDepth = SwapChainBitDepth::_8;
+	const WindowData&           windowData;
+	ComPtr<IDXGIFactory7>       factory;
+	ComPtr<ID3D12Device14>      device;
+	ComPtr<D3D12MA::Allocator>  allocator;
+	CommandQueueD3D12*          presentQueue{ nullptr };
+	StagingDescriptorHeapD3D12* RTVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeapD3D12* DSVStagingDescriptorHeap{ nullptr };
+	int                         numBackBuffers{ MAX_BACK_BUFFER_COUNT };
+	bool                        allowTearing{ true };
+	bool                        vSync{ false };
+	bool                        HDR{ false };
+	SwapChainBitDepth           bitDepth = SwapChainBitDepth::_8;
 };
 
 class SwapChainD3D12 final
@@ -59,6 +61,11 @@ public:
 		return m_backBuffersDescriptor[m_currentBackBufferIndex].CPUHandle;
 	}
 
+	auto GetDepthStencilView() const noexcept
+	{
+		return m_depthStencilDescriptor.CPUHandle;
+	}
+
 	auto GetCurrentBackBufferRenderTarget() const { return m_backBuffers[m_currentBackBufferIndex].Get(); }
 	auto GetNumPresentedFrames() const { return m_numTotalFrames; }
 	DXGI_OUTPUT_DESC1 GetContainingMonitorDesc() const;
@@ -72,16 +79,20 @@ public:
 
 private:
 	bool createSwapChain(const SwapChainD3D12CreateInfo& createInfo);
-	bool checkHDRSupport(HWND hwnd);
+	bool checkHDRSupport(HWND hwnd, ComPtr<IDXGIFactory7> factory);
 
 	bool createRenderTargetViews();
+	bool createDepthStencilViews(uint32_t width, uint32_t height);
 	void destroyRenderTargetViews();
+	void destroyDepthStencilViews();
 
 	ComPtr<ID3D12Device14>      m_device;
+	ComPtr<D3D12MA::Allocator>  m_allocator;
 	CommandQueueD3D12*          m_presentQueue;
 	ComPtr<IDXGISwapChain4>     m_swapChain;
 
 	DXGI_FORMAT                 m_backBufferFormat{ DXGI_FORMAT_UNKNOWN };
+	const DXGI_FORMAT           m_depthBufferFormat{ DXGI_FORMAT_D32_FLOAT }; // TODO: set?
 	DXGI_COLOR_SPACE_TYPE       m_colorSpace{ DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709 }; // Rec709 w/ Gamma2.2
 	DXGI_HDR_METADATA_HDR10     m_HDRMetaData;
 
@@ -93,13 +104,16 @@ private:
 	DescriptorD3D12             m_backBuffersDescriptor[MAX_BACK_BUFFER_COUNT];
 	StagingDescriptorHeapD3D12* m_RTVStagingDescriptorHeap{ nullptr };
 
+	ComPtr<ID3D12Resource>      m_depthStencil;
+	D3D12MA::Allocation*        m_depthStencilAllocation;
+	DescriptorD3D12             m_depthStencilDescriptor{};
+	StagingDescriptorHeapD3D12* m_DSVStagingDescriptorHeap{ nullptr };
+
 	unsigned short              m_numBackBuffers{ 0 };
 	unsigned short              m_currentBackBufferIndex{ 0 };
 	unsigned long long          m_numTotalFrames{ 0 };
 	bool                        m_vSync{ false };
 	bool                        m_allowTearing{ false };
-
-
 };
 
 #endif // RENDER_D3D12

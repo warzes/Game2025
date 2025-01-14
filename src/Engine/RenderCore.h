@@ -4,6 +4,7 @@ struct ContextCreateInfo final
 {
 #if RENDER_D3D12
 	bool useWarp{ false };
+	bool enableCPUAllocationCallbacks{ false };
 
 	struct Debug final
 	{

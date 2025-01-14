@@ -39,7 +39,7 @@ public:
 	auto GetCurrentFrameIndex() const noexcept { return swapChain.GetCurrentBackBufferIndex(); }
 
 	auto GetBackBufferFormat() const noexcept { return swapChain.GetFormat(); }
-	auto GetDepthBufferFormat() const noexcept { return depthBufferFormat; }
+	//auto GetDepthBufferFormat() const noexcept { return depthBufferFormat; }
 
 	auto GetRenderTargetView() const noexcept
 	{
@@ -48,7 +48,7 @@ public:
 
 	auto GetDepthStencilView() const noexcept
 	{
-		return depthStencilDescriptor.CPUHandle;
+		return swapChain.GetDepthStencilView();
 	}
 
 	ContextD3D12                        context;
@@ -62,23 +62,16 @@ public:
 	StagingDescriptorHeapD3D12*         DSVStagingDescriptorHeap{ nullptr };
 	StagingDescriptorHeapD3D12*         CBVSRVUAVStagingDescriptorHeap{ nullptr };
 
-	ComPtr<ID3D12Resource>              depthStencil;
-	DescriptorD3D12                     depthStencilDescriptor{};
-
 	D3D12_VIEWPORT                      screenViewport{};
 	D3D12_RECT                          scissorRect{};
 	uint32_t                            frameBufferWidth{ 0 };
 	uint32_t                            frameBufferHeight{ 0 };
-	const DXGI_FORMAT                   depthBufferFormat{ DXGI_FORMAT_D32_FLOAT };
 
 private:
 	void resetVal();
 	bool setSize(uint32_t width, uint32_t height);
 	bool createDescriptorHeap();
-	bool updateRenderTargetViews();
-	void destroyRenderTargetViews();
-
-	void moveToNextFrame();
+	void updateViewport();
 };
 
 extern RHIBackend gRHI;

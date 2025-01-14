@@ -13,6 +13,29 @@ void D3D12MessageCallbackFunc(D3D12_MESSAGE_CATEGORY Category, D3D12_MESSAGE_SEV
 }
 #endif // RHI_VALIDATION_ENABLED
 //=============================================================================
+void* const CUSTOM_ALLOCATION_PRIVATE_DATA = (void*)(uintptr_t)0xDEADC0DE;
+std::atomic<size_t> CpuAllocationCount{ 0 };
+//=============================================================================
+void* CustomAllocate(size_t Size, size_t Alignment, void* pPrivateData)
+{
+	assert(pPrivateData == CUSTOM_ALLOCATION_PRIVATE_DATA);
+	void* memory = _aligned_malloc(Size, Alignment);
+	wprintf(L"Allocate Size=%llu Alignment=%llu -> %p\n", Size, Alignment, memory);
+	++CpuAllocationCount;
+	return memory;
+}
+//=============================================================================
+void CustomFree(void* pMemory, void* pPrivateData)
+{
+	assert(pPrivateData == CUSTOM_ALLOCATION_PRIVATE_DATA);
+	if (pMemory)
+	{
+		--CpuAllocationCount;
+		wprintf(L"Free %p\n", pMemory);
+		_aligned_free(pMemory);
+	}
+}
+//=============================================================================
 ContextD3D12::~ContextD3D12()
 {
 	assert(!m_device);
@@ -24,11 +47,11 @@ ContextD3D12::~ContextD3D12()
 bool ContextD3D12::Create(const ContextCreateInfo& createInfo)
 {
 	enableDebugLayer(createInfo);
-	if (!createFactory())                   return false;
-	if (!selectAdapter(createInfo.useWarp)) return false;
-	if (!createDevice())                    return false;
+	if (!createFactory())                                          return false;
+	if (!selectAdapter(createInfo.useWarp))                        return false;
+	if (!createDevice())                                           return false;
 	checkDeviceFeatureSupport();
-	if (!createAllocator())                 return false;
+	if (!createAllocator(createInfo.enableCPUAllocationCallbacks)) return false;
 
 	return true;
 }
@@ -60,7 +83,7 @@ void ContextD3D12::enableDebugLayer(const ContextCreateInfo& createInfo)
 
 		DXGI_INFO_QUEUE_MESSAGE_ID hide[] =
 		{
-			80 /* IDXGISwapChain::GetContainingOutput: The swapchain's adapter does not control the output on which the swapchain's window resides. */,
+			80 /* IDXGISwapChain::GetContainingOutput: The swapChain's adapter does not control the output on which the swapChain's window resides. */,
 		};
 		DXGI_INFO_QUEUE_FILTER filter = {};
 		filter.DenyList.NumIDs = static_cast<UINT>(std::size(hide));
@@ -397,12 +420,22 @@ void ContextD3D12::checkDeviceFeatureSupport()
 	}
 }
 //=============================================================================
-bool ContextD3D12::createAllocator()
+bool ContextD3D12::createAllocator(bool enableCPUAllocationCallbacks)
 {
+	constexpr D3D12MA::ALLOCATOR_FLAGS allocatorFlags = D3D12MA::ALLOCATOR_FLAG_DEFAULT_POOLS_NOT_ZEROED;
+
 	D3D12MA::ALLOCATOR_DESC desc = {};
-	desc.Flags = D3D12MA::ALLOCATOR_FLAG_NONE;
-	desc.pDevice = m_device.Get();
+	desc.Flags    = allocatorFlags;
+	desc.pDevice  = m_device.Get();
 	desc.pAdapter = m_adapter.Get();
+
+	if (enableCPUAllocationCallbacks)
+	{
+		m_allocationCallbacks.pAllocate    = &CustomAllocate;
+		m_allocationCallbacks.pFree        = &CustomFree;
+		m_allocationCallbacks.pPrivateData = CUSTOM_ALLOCATION_PRIVATE_DATA;
+		desc.pAllocationCallbacks = &m_allocationCallbacks;
+	}
 
 	HRESULT result = D3D12MA::CreateAllocator(&desc, &m_allocator);
 	if (FAILED(result))
