@@ -27,6 +27,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	SwapChainD3D12CreateInfo swapChainCreateInfo = { .windowData = wndData };
 	swapChainCreateInfo.factory                  = context.GetD3DFactory();
 	swapChainCreateInfo.device                   = context.GetD3DDevice();
+	swapChainCreateInfo.allocator                = context.GetD3DAllocator();
 	swapChainCreateInfo.presentQueue             = &commandQueue;
 	swapChainCreateInfo.RTVStagingDescriptorHeap = RTVStagingDescriptorHeap;
 	swapChainCreateInfo.DSVStagingDescriptorHeap = DSVStagingDescriptorHeap;

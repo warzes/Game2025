@@ -105,7 +105,7 @@ private:
 	StagingDescriptorHeapD3D12* m_RTVStagingDescriptorHeap{ nullptr };
 
 	ComPtr<ID3D12Resource>      m_depthStencil;
-	D3D12MA::Allocation*        m_depthStencilAllocation;
+	D3D12MA::Allocation*        m_depthStencilAllocation{ nullptr };
 	DescriptorD3D12             m_depthStencilDescriptor{};
 	StagingDescriptorHeapD3D12* m_DSVStagingDescriptorHeap{ nullptr };
 
