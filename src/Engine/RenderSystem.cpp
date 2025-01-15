@@ -33,6 +33,6 @@ void RenderSystem::EndFrame()
 //=============================================================================
 glm::ivec2 RenderSystem::GetFrameBufferSize() const
 {
-	return { gRHI.frameBufferWidth, gRHI.frameBufferHeight };
+	return { gRHI.GetFrameBufferWidth(), gRHI.GetFrameBufferHeight()};
 }
 //=============================================================================

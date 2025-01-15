@@ -17,9 +17,6 @@ RHIBackend gRHI{};
 //=============================================================================
 bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateInfo& createInfo)
 {
-	resetVal();
-	setSize(wndData.width, wndData.height);
-
 	if (!context.Create(createInfo.context)) return false;
 	if (!commandQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_DIRECT, "Main Render Command Queue")) return false;
 	if (!createDescriptorHeap()) return false;
@@ -27,6 +24,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 	SwapChainD3D12CreateInfo swapChainCreateInfo = { .windowData = wndData };
 	swapChainCreateInfo.factory                  = context.GetD3DFactory();
 	swapChainCreateInfo.device                   = context.GetD3DDevice();
+	swapChainCreateInfo.allocator                = context.GetD3DAllocator();
 	swapChainCreateInfo.presentQueue             = &commandQueue;
 	swapChainCreateInfo.RTVStagingDescriptorHeap = RTVStagingDescriptorHeap;
 	swapChainCreateInfo.DSVStagingDescriptorHeap = DSVStagingDescriptorHeap;
@@ -56,8 +54,6 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 		return false;
 	}
 
-	updateViewport();
-
 	return true;
 }
 //=============================================================================
@@ -78,21 +74,14 @@ void RHIBackend::DestroyAPI()
 	delete DSVStagingDescriptorHeap; DSVStagingDescriptorHeap = nullptr;
 	delete CBVSRVUAVStagingDescriptorHeap; CBVSRVUAVStagingDescriptorHeap = nullptr;
 
-	frameBufferWidth = 0;
-	frameBufferHeight = 0;
-
 	context.Destroy();
 }
 //=============================================================================
 void RHIBackend::ResizeFrameBuffer(uint32_t width, uint32_t height)
 {
-	if (!setSize(width, height)) return;
-
 	// Wait until all previous GPU work is complete.
 	WaitForGpu();
 	if (!swapChain.Resize(width, height)) return;
-	updateViewport();
-
 	Print("Window Resize: " + std::to_string(width) + "." + std::to_string(height));
 }
 //=============================================================================
@@ -158,24 +147,6 @@ void RHIBackend::WaitForGpu()
 	swapChain.WaitForGPU();
 }
 //=============================================================================
-void RHIBackend::resetVal()
-{
-	frameBufferWidth = 0;
-	frameBufferHeight = 0;
-}
-//=============================================================================
-bool RHIBackend::setSize(uint32_t width, uint32_t height)
-{
-	// Don't allow 0 size swap chain back buffers.
-	width = std::max(1u, width);
-	height = std::max(1u, height);
-	if (frameBufferWidth == width && frameBufferHeight == height) return false;
-	frameBufferWidth = width;
-	frameBufferHeight = height;
-
-	return true;
-}
-//=============================================================================
 bool RHIBackend::createDescriptorHeap()
 {
 	RTVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_RTV_STAGING_DESCRIPTORS);
@@ -197,20 +168,6 @@ bool RHIBackend::createDescriptorHeap()
 		return false;
 	}
 	return true;
-}
-//=============================================================================
-void RHIBackend::updateViewport()
-{
-	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
-	screenViewport.TopLeftX = screenViewport.TopLeftY = 0.f;
-	screenViewport.Width = static_cast<float>(frameBufferWidth);
-	screenViewport.Height = static_cast<float>(frameBufferHeight);
-	screenViewport.MinDepth = D3D12_MIN_DEPTH;
-	screenViewport.MaxDepth = D3D12_MAX_DEPTH;
-
-	scissorRect.left = scissorRect.top = 0;
-	scissorRect.right = static_cast<LONG>(frameBufferWidth);
-	scissorRect.bottom = static_cast<LONG>(frameBufferHeight);
 }
 //=============================================================================
 #endif // RENDER_D3D12

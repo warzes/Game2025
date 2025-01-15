@@ -12,11 +12,14 @@ SwapChainD3D12::~SwapChainD3D12()
 //=============================================================================
 bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 {
+	// reset val
 	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
 		m_fenceValues[i] = 0;
 	m_numBackBuffers = 0;
 	m_currentBackBufferIndex = 0;
 	m_numTotalFrames = 0;
+	m_frameBufferWidth = 0;
+	m_frameBufferHeight = 0;
 
 	assert(createInfo.factory);
 	assert(createInfo.device);
@@ -26,6 +29,8 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 	assert(createInfo.DSVStagingDescriptorHeap);
 	assert(createInfo.windowData.hwnd);
 	assert(createInfo.numBackBuffers > 0 && createInfo.numBackBuffers <= MAX_BACK_BUFFER_COUNT);
+
+	setSize(createInfo.windowData.width, createInfo.windowData.height);
 
 	m_device                   = createInfo.device;
 	m_allocator                = createInfo.allocator;
@@ -40,14 +45,13 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 
 	for (size_t i = 0; i < m_numBackBuffers; i++)
 		m_backBuffersDescriptor[i] = m_RTVStagingDescriptorHeap->GetNewDescriptor();
-
 	m_depthStencilDescriptor = m_DSVStagingDescriptorHeap->GetNewDescriptor();
 
 	if (!m_fence.Create(m_device.Get(), "SwapChain Fence")) return false;
 	m_fenceValues[m_currentBackBufferIndex]++;
 
 	if (!createRenderTargetViews()) return false;
-	if (!createDepthStencilViews(createInfo.windowData.width, createInfo.windowData.height)) return false;
+	if (!createDepthStencilViews()) return false;
 
 	return true;
 }
@@ -81,6 +85,8 @@ bool SwapChainD3D12::Resize(uint32_t width, uint32_t height)
 		return false;
 	}
 
+	if (!setSize(width, height)) return false;
+
 	WaitForGPU();
 	destroyRenderTargetViews();
 	destroyDepthStencilViews();
@@ -104,7 +110,7 @@ bool SwapChainD3D12::Resize(uint32_t width, uint32_t height)
 	}
 
 	if (!createRenderTargetViews()) return false;
-	if (!createDepthStencilViews(width, height)) return false;
+	if (!createDepthStencilViews()) return false;
 
 	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
 	return true;
@@ -259,6 +265,29 @@ DXGI_OUTPUT_DESC1 SwapChainD3D12::GetContainingMonitorDesc() const
 	return d;
 }
 //=============================================================================
+bool SwapChainD3D12::setSize(uint32_t width, uint32_t height)
+{
+	// Don't allow 0 size swap chain back buffers.
+	width  = std::max(1u, width);
+	height = std::max(1u, height);
+	if (m_frameBufferWidth == width && m_frameBufferHeight == height) return false;
+	m_frameBufferWidth  = width;
+	m_frameBufferHeight = height;
+
+	// Set the 3D rendering viewport and scissor rectangle to target the entire window.
+	m_screenViewport.TopLeftX = m_screenViewport.TopLeftY = 0.f;
+	m_screenViewport.Width    = static_cast<float>(width);
+	m_screenViewport.Height   = static_cast<float>(height);
+	m_screenViewport.MinDepth = D3D12_MIN_DEPTH;
+	m_screenViewport.MaxDepth = D3D12_MAX_DEPTH;
+
+	m_scissorRect.left = m_scissorRect.top = 0;
+	m_scissorRect.right  = static_cast<LONG>(width);
+	m_scissorRect.bottom = static_cast<LONG>(height);
+
+	return true;
+}
+//=============================================================================
 bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 {
 	// Determine SwapChain Format based on whether HDR is supported & enabled or not
@@ -300,8 +329,8 @@ bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 	constexpr DXGI_SWAP_EFFECT swapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	swapChainDesc.Width                 = createInfo.windowData.width;
-	swapChainDesc.Height                = createInfo.windowData.height;
+	swapChainDesc.Width                 = m_frameBufferWidth;
+	swapChainDesc.Height                = m_frameBufferHeight;
 	swapChainDesc.Format                = swapChainFormat;
 	swapChainDesc.Stereo                = FALSE;
 	swapChainDesc.SampleDesc            = { 1, 0 };
@@ -375,7 +404,7 @@ bool SwapChainD3D12::createRenderTargetViews()
 	return true;
 }
 //=============================================================================
-bool SwapChainD3D12::createDepthStencilViews(uint32_t width, uint32_t height)
+bool SwapChainD3D12::createDepthStencilViews()
 {
 	if (m_depthBufferFormat != DXGI_FORMAT_UNKNOWN)
 	{
@@ -387,8 +416,8 @@ bool SwapChainD3D12::createDepthStencilViews(uint32_t width, uint32_t height)
 		D3D12_RESOURCE_DESC depthStencilResourceDesc = {};
 		depthStencilResourceDesc.Dimension           = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 		depthStencilResourceDesc.Alignment           = 0;
-		depthStencilResourceDesc.Width               = width;
-		depthStencilResourceDesc.Height              = height;
+		depthStencilResourceDesc.Width               = m_frameBufferWidth;
+		depthStencilResourceDesc.Height              = m_frameBufferHeight;
 		depthStencilResourceDesc.DepthOrArraySize    = 1;
 		depthStencilResourceDesc.MipLevels           = 1;
 		depthStencilResourceDesc.Format              = m_depthBufferFormat;
@@ -396,9 +425,7 @@ bool SwapChainD3D12::createDepthStencilViews(uint32_t width, uint32_t height)
 		depthStencilResourceDesc.Layout              = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 		depthStencilResourceDesc.Flags               = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
-		D3D12_CLEAR_VALUE depthOptimizedClearValue = {};
-		depthOptimizedClearValue.Format            = m_depthBufferFormat;
-		depthOptimizedClearValue.DepthStencil      = { 1.0f, 0 };
+		const CD3DX12_CLEAR_VALUE depthOptimizedClearValue(m_depthBufferFormat, 1.0f, 0u);
 
 		HRESULT result = m_allocator->CreateResource(&depthStencilAllocDesc, &depthStencilResourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &depthOptimizedClearValue, &m_depthStencilAllocation, IID_PPV_ARGS(&m_depthStencil));
 		if (FAILED(result))
@@ -409,40 +436,11 @@ bool SwapChainD3D12::createDepthStencilViews(uint32_t width, uint32_t height)
 		m_depthStencil->SetName(L"Depth/Stencil Resource Heap");
 		m_depthStencilAllocation->SetName(L"Depth/Stencil Resource Heap");
 
-		...
-
-
-		// Allocate a 2-D surface as the depth/stencil buffer and create a depth/stencil view on this surface.
-		const CD3DX12_HEAP_PROPERTIES depthHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
-
-		const D3D12_RESOURCE_DESC depthStencilDesc = CD3DX12_RESOURCE_DESC::Tex2D(
-			m_depthBufferFormat, width, height, 1, 0, 1, 0,
-			D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL
-		);
-
-		//const CD3DX12_CLEAR_VALUE depthOptimizedClearValue(m_depthBufferFormat, 1.0f, 0u);
-
-		HRESULT result = m_device->CreateCommittedResource(
-			&depthHeapProperties,
-			D3D12_HEAP_FLAG_NONE,
-			&depthStencilDesc,
-			D3D12_RESOURCE_STATE_DEPTH_WRITE,
-			&depthOptimizedClearValue,
-			IID_PPV_ARGS(m_depthStencil.ReleaseAndGetAddressOf())
-		);
-		if (FAILED(result))
-		{
-			Fatal("ID3D12Device14::CreateCommittedResource() failed: " + DXErrorToStr(result));
-			return false;
-		}
-
-		m_depthStencil->SetName(L"Depth stencil");
-
-		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-		dsvDesc.Format = m_depthBufferFormat;
-		dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
-
-		m_device->CreateDepthStencilView(m_depthStencil.Get(), &dsvDesc, m_depthStencilDescriptor.CPUHandle);
+		D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilDesc = {};
+		depthStencilDesc.Format                        = m_depthBufferFormat;
+		depthStencilDesc.ViewDimension                 = D3D12_DSV_DIMENSION_TEXTURE2D;
+		depthStencilDesc.Flags                         = D3D12_DSV_FLAG_NONE;
+		m_device->CreateDepthStencilView(m_depthStencil.Get(), &depthStencilDesc, m_depthStencilDescriptor.CPUHandle);
 	}
 
 	return true;
@@ -457,6 +455,7 @@ void SwapChainD3D12::destroyRenderTargetViews()
 void SwapChainD3D12::destroyDepthStencilViews()
 {
 	m_depthStencil.Reset();
+	if (m_depthStencilAllocation) m_depthStencilAllocation->Release(); m_depthStencilAllocation = nullptr;
 }
 //=============================================================================
 // To detect HDR support, we will need to check the color space in the primary DXGI output associated with the app at this point in time (using window/display intersection). 

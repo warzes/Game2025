@@ -72,17 +72,23 @@ public:
 	auto IsVSyncOn() const { return m_vSync; }
 	auto GetFormat() const { return m_backBufferFormat; }
 
+	auto GetScreenViewport() const noexcept { return m_screenViewport; }
+	auto GetScissorRect() const noexcept { return m_scissorRect; }
+	auto GetFrameBufferWidth() const noexcept { return m_frameBufferWidth; }
+	auto GetFrameBufferHeight() const noexcept { return m_frameBufferHeight; }
+
 	auto IsHDRFormat() const { return m_backBufferFormat == DXGI_FORMAT_R16G16B16A16_FLOAT || m_backBufferFormat == DXGI_FORMAT_R10G10B10A2_UNORM; }
 	auto GetColorSpace() const { return m_colorSpace; }
 	auto GetHDRMetaData_MaxOutputNits()  const { return static_cast<float>(m_HDRMetaData.MaxMasteringLuminance) / 10000.0f; }
 	auto GetHDRMetaData_MinOutputNits() const { return static_cast<float>(m_HDRMetaData.MinMasteringLuminance) / 10000.0f; }
 
 private:
+	bool setSize(uint32_t width, uint32_t height);
 	bool createSwapChain(const SwapChainD3D12CreateInfo& createInfo);
 	bool checkHDRSupport(HWND hwnd, ComPtr<IDXGIFactory7> factory);
 
 	bool createRenderTargetViews();
-	bool createDepthStencilViews(uint32_t width, uint32_t height);
+	bool createDepthStencilViews();
 	void destroyRenderTargetViews();
 	void destroyDepthStencilViews();
 
@@ -96,6 +102,11 @@ private:
 	DXGI_COLOR_SPACE_TYPE       m_colorSpace{ DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709 }; // Rec709 w/ Gamma2.2
 	DXGI_HDR_METADATA_HDR10     m_HDRMetaData;
 
+	D3D12_VIEWPORT              m_screenViewport{};
+	D3D12_RECT                  m_scissorRect{};
+	uint32_t                    m_frameBufferWidth{ 0 };
+	uint32_t                    m_frameBufferHeight{ 0 };
+
 	// Synchronization objects
 	FenceD3D12                  m_fence;
 	uint64_t                    m_fenceValues[MAX_BACK_BUFFER_COUNT] = {};
@@ -105,7 +116,7 @@ private:
 	StagingDescriptorHeapD3D12* m_RTVStagingDescriptorHeap{ nullptr };
 
 	ComPtr<ID3D12Resource>      m_depthStencil;
-	D3D12MA::Allocation*        m_depthStencilAllocation;
+	D3D12MA::Allocation*        m_depthStencilAllocation{ nullptr };
 	DescriptorD3D12             m_depthStencilDescriptor{};
 	StagingDescriptorHeapD3D12* m_DSVStagingDescriptorHeap{ nullptr };
 

@@ -30,6 +30,7 @@ public:
 	auto GetD3DAdapter() { return m_adapter; }
 	auto GetD3DDevice() const noexcept { return m_device; }
 	auto GetD3DDeviceRef() const noexcept { return m_device.Get(); }
+	auto GetD3DAllocator() const noexcept { return m_allocator; }
 
 	bool IsSupportAllowTearing() const { return m_supportAllowTearing; }
 
