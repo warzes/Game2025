@@ -95,56 +95,82 @@ void RHIBackend::EndFrame()
 //=============================================================================
 void RHIBackend::Prepare(D3D12_RESOURCE_STATES beforeState, D3D12_RESOURCE_STATES afterState)
 {
-	// Reset command list and allocator.
-	HRESULT result = commandAllocators[swapChain.GetCurrentBackBufferIndex()]->Reset();
-	if (FAILED(result))
+	PIXBeginEvent(PIX_COLOR_DEFAULT, L"Prepare");
 	{
-		Fatal("ID3D12CommandAllocator::Reset() failed: " + DXErrorToStr(result));
-		return;
-	}
+		// Reset command list and allocator.
+		HRESULT result = commandAllocators[swapChain.GetCurrentBackBufferIndex()]->Reset();
+		if (FAILED(result))
+		{
+			Fatal("ID3D12CommandAllocator::Reset() failed: " + DXErrorToStr(result));
+			return;
+		}
 
-	result = commandList->Reset(commandAllocators[swapChain.GetCurrentBackBufferIndex()].Get(), nullptr);
-	if (FAILED(result))
-	{
-		Fatal("ID3D12GraphicsCommandList10::Reset() failed: " + DXErrorToStr(result));
-		return;
-	}
+		result = commandList->Reset(commandAllocators[swapChain.GetCurrentBackBufferIndex()].Get(), nullptr);
+		if (FAILED(result))
+		{
+			Fatal("ID3D12GraphicsCommandList10::Reset() failed: " + DXErrorToStr(result));
+			return;
+		}
 
-	if (beforeState != afterState)
-	{
-		const D3D12_RESOURCE_BARRIER barrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(swapChain.GetCurrentBackBufferRenderTarget(),
-			beforeState, afterState);
-		commandList->ResourceBarrier(1, &barrierRTV);
+		if (beforeState != afterState)
+		{
+			const D3D12_RESOURCE_BARRIER barrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(swapChain.GetCurrentBackBufferRenderTarget(),
+				beforeState, afterState);
+			commandList->ResourceBarrier(1, &barrierRTV);
+		}
 	}
+	PIXEndEvent();
 }
 //=============================================================================
 void RHIBackend::Present(D3D12_RESOURCE_STATES beforeState)
 {
-	if (beforeState != D3D12_RESOURCE_STATE_PRESENT)
+	PIXBeginEvent(PIX_COLOR_DEFAULT, L"Present");
 	{
-		// Transition the render target to the state that allows it to be presented to the display.
-		const D3D12_RESOURCE_BARRIER barrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(
-			swapChain.GetCurrentBackBufferRenderTarget(),
-			beforeState, D3D12_RESOURCE_STATE_PRESENT);
-		commandList->ResourceBarrier(1, &barrierRTV);
-	}
+		if (beforeState != D3D12_RESOURCE_STATE_PRESENT)
+		{
+			// Transition the render target to the state that allows it to be presented to the display.
+			const D3D12_RESOURCE_BARRIER barrierRTV = CD3DX12_RESOURCE_BARRIER::Transition(
+				swapChain.GetCurrentBackBufferRenderTarget(),
+				beforeState, D3D12_RESOURCE_STATE_PRESENT);
+			commandList->ResourceBarrier(1, &barrierRTV);
+		}
 
-	// Send the command list off to the GPU for processing.
-	HRESULT result = commandList->Close();
-	if (FAILED(result))
-	{
-		Fatal("ID3D12GraphicsCommandList10::Close() failed: " + DXErrorToStr(result));
-		return;
-	}
-	commandQueue.Get()->ExecuteCommandLists(1, CommandListCast(commandList.GetAddressOf()));
+		// Send the command list off to the GPU for processing.
+		HRESULT result = commandList->Close();
+		if (FAILED(result))
+		{
+			Fatal("ID3D12GraphicsCommandList10::Close() failed: " + DXErrorToStr(result));
+			return;
+		}
+		commandQueue.Get()->ExecuteCommandLists(1, CommandListCast(commandList.GetAddressOf()));
 
-	swapChain.Present();
-	swapChain.MoveToNextFrame();
+		swapChain.Present();
+		swapChain.MoveToNextFrame();
+	}
+	PIXEndEvent();
 }
 //=============================================================================
 void RHIBackend::WaitForGpu()
 {
 	swapChain.WaitForGPU();
+}
+//=============================================================================
+void RHIBackend::ClearFrameBuffer(const glm::vec4& color)
+{
+	PIXBeginEvent(commandList.Get(), PIX_COLOR_DEFAULT, L"ClearFrameBuffer");
+
+	const auto rtvDescriptor = swapChain.GetRenderTargetView();
+	const auto dsvDescriptor = swapChain.GetDepthStencilView();
+	const auto viewport = swapChain.GetScreenViewport();
+	const auto scissorRect = swapChain.GetScissorRect();
+
+	commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
+	commandList->ClearRenderTargetView(rtvDescriptor, &color[0], 0, nullptr);
+	commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	commandList->RSSetViewports(1, &viewport);
+	commandList->RSSetScissorRects(1, &scissorRect);
+
+	PIXEndEvent(commandList.Get());
 }
 //=============================================================================
 bool RHIBackend::createDescriptorHeap()

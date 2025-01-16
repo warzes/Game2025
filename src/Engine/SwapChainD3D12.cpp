@@ -156,6 +156,10 @@ void SwapChainD3D12::WaitForGPU()
 		// Schedule a Signal command in the GPU queue.
 		if (m_presentQueue->Signal(m_fence, m_fenceValues[m_currentBackBufferIndex]))
 		{
+#if 1
+			if (m_fence.WaitOnCPU(m_fenceValues[m_currentBackBufferIndex]))
+				m_fenceValues[m_currentBackBufferIndex]++;
+#else // TODO: удалить если все нормально
 			// Wait until the Signal has been processed.
 			if (SUCCEEDED(m_fence.Get()->SetEventOnCompletion(m_fenceValues[m_currentBackBufferIndex], m_fence.GetEvent())))
 			{
@@ -164,6 +168,7 @@ void SwapChainD3D12::WaitForGPU()
 				// Increment the fence value for the current frame.
 				m_fenceValues[m_currentBackBufferIndex]++;
 			}
+#endif
 		}
 	}
 }

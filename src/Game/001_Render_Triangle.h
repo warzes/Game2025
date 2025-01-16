@@ -112,6 +112,8 @@ void ExampleRender001()
 			vertexBufferView.SizeInBytes = vertexBufferSize;
 		}
 
+		auto commandList = gRHI.GetCommandList();
+
 		while (!engine.IsShouldClose())
 		{
 			engine.BeginFrame();
@@ -128,25 +130,22 @@ void ExampleRender001()
 			// Render
 			{
 				gRHI.Prepare();
-				auto commandList = gRHI.GetCommandList();
 
 				// Clear the render target.
+				PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Clear");
 				{
 					const auto rtvDescriptor = gRHI.GetRenderTargetView();
 					const auto dsvDescriptor = gRHI.GetDepthStencilView();
 					const auto viewport = gRHI.GetScreenViewport();
 					const auto scissorRect = gRHI.GetScissorRect();
 
-					PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Clear");
-
 					commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
 					commandList->ClearRenderTargetView(rtvDescriptor, clearColor, 0, nullptr);
 					commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 					commandList->RSSetViewports(1, &viewport);
 					commandList->RSSetScissorRects(1, &scissorRect);
-
-					PIXEndEvent(commandList);
 				}
+				PIXEndEvent(commandList);
 
 				PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Render");
 				{

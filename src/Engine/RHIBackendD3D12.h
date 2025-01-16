@@ -29,6 +29,8 @@ public:
 
 	void WaitForGpu();
 
+	void ClearFrameBuffer(const glm::vec4& color);
+
 	auto GetD3DDevice() const noexcept { return context.GetD3DDevice(); }
 	auto GetCommandQueue() const noexcept { return commandQueue.Get().Get(); }
 	auto GetCommandList() const noexcept { return commandList.Get(); }

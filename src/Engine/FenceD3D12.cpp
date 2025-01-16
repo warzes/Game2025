@@ -33,8 +33,10 @@ void FenceD3D12::Destroy()
 	m_event.Close();
 }
 //=============================================================================
-bool FenceD3D12::WaitOnCPU(uint64_t FenceWaitValue) const
+bool FenceD3D12::WaitOnCPU(uint64_t FenceWaitValue, DWORD timeout) const
 {
+	if (timeout == 0) return false;
+
 	// If the next frame is not ready to be rendered yet, wait until it is ready.
 	if (m_fence->GetCompletedValue() < FenceWaitValue)
 	{
@@ -46,8 +48,10 @@ bool FenceD3D12::WaitOnCPU(uint64_t FenceWaitValue) const
 			return false;
 		}
 
-		result = WaitForSingleObjectEx(m_event.Get(), INFINITE, FALSE);
-		if (result == WAIT_TIMEOUT)
+		DWORD ret = WaitForSingleObjectEx(m_event.Get(), timeout, FALSE);
+		if (ret == WAIT_OBJECT_0)
+			return true;
+		if (ret == WAIT_TIMEOUT)
 		{
 			Warning("SwapChain timed out on WaitForGPU(): Signal=" + std::to_string(FenceWaitValue));
 		}
