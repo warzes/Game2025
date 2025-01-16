@@ -5,6 +5,7 @@
 #	include "002_Render_TextureTriangle.h"
 #	include "003_Render_TriangleBundles.h"
 #	include "004_Render_TriangleCB.h"
+#	include "005_Render_TriangleD12MA.h"
 #endif
 //=============================================================================
 #if defined(_MSC_VER)
@@ -18,10 +19,11 @@ int main(
 {
 #if EXAMPLE_RUN
 	//ExampleRender000();
-	ExampleRender001();
+	//ExampleRender001();
 	//ExampleRender002();
 	//ExampleRender003();
 	//ExampleRender004();
+	ExampleRender005();
 #else
 	extern void GameApp();
 	GameApp();

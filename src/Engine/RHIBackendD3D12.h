@@ -32,7 +32,7 @@ public:
 	void ClearFrameBuffer(const glm::vec4& color);
 
 	auto GetD3DDevice() const noexcept { return context.GetD3DDevice(); }
-	//auto GetCommandQueue() const noexcept { return commandQueue.Get().Get(); }
+	auto GetD3DAllocator() const noexcept { return context.GetD3DAllocator(); }
 	auto GetCommandList() const noexcept { return commandList.Get(); }
 	auto GetCurrentCommandAllocator() const noexcept { return commandAllocators[swapChain.GetCurrentBackBufferIndex()].Get(); }
 

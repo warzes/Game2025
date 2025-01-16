@@ -107,6 +107,7 @@
     <ClInclude Include="000_oRender_Clear.h" />
     <ClInclude Include="000_Render_Clear.h" />
     <ClInclude Include="001_oRender_TriangleBindless.h" />
+    <ClInclude Include="005_Render_TriangleD12MA.h" />
     <ClInclude Include="002_Render_TextureTriangle.h" />
     <ClInclude Include="001_Render_Triangle.h" />
     <ClInclude Include="002_oRender_RotateCubeBindless.h" />

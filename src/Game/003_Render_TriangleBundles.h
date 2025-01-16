@@ -1,31 +1,22 @@
 ﻿#include "stdafx.h"
 
-using namespace DirectX;
-
 void ExampleRender003()
 {
 	EngineAppCreateInfo engineAppCreateInfo{};
 	EngineApp engine;
 	if (engine.Create(engineAppCreateInfo))
 	{
-		const FLOAT clearColor[] = { 0.4f, 0.6f, 0.9f, 1.0f };
-
 		struct Vertex
 		{
-			XMFLOAT3 position;
-			XMFLOAT4 color;
+			DirectX::XMFLOAT3 position;
+			DirectX::XMFLOAT4 color;
 		};
 
 		ComPtr<ID3D12CommandAllocator>    bundleAllocator;
-		ComPtr<ID3D12RootSignature>       rootSignature;
-		ComPtr<ID3D12PipelineState>       pipelineState;
-		ComPtr<ID3D12GraphicsCommandList> bundle;
-		ComPtr<ID3D12Resource>            vertexBuffer;
-		D3D12_VERTEX_BUFFER_VIEW          vertexBufferView;
-
 		gRHI.GetD3DDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_BUNDLE, IID_PPV_ARGS(&bundleAllocator));
 
 		// Create an empty root signature.
+		ComPtr<ID3D12RootSignature>       rootSignature;
 		{
 			CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 			rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -37,6 +28,7 @@ void ExampleRender003()
 		}
 
 		// Create the pipeline state, which includes compiling and loading shaders.
+		ComPtr<ID3D12PipelineState>       pipelineState;
 		{
 			ComPtr<ID3DBlob> vertexShader;
 			ComPtr<ID3DBlob> pixelShader;
@@ -77,6 +69,8 @@ void ExampleRender003()
 		}
 
 		// Create the vertex buffer.
+		ComPtr<ID3D12Resource>            vertexBuffer;
+		D3D12_VERTEX_BUFFER_VIEW          vertexBufferView;
 		{
 			float aspectRatio = 800.0f / 600.0f;
 			// Define the geometry for a triangle.
@@ -117,6 +111,7 @@ void ExampleRender003()
 		}
 
 		// Create and record the bundle.
+		ComPtr<ID3D12GraphicsCommandList> bundle;
 		{
 			gRHI.GetD3DDevice()->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_BUNDLE, bundleAllocator.Get(), pipelineState.Get(), IID_PPV_ARGS(&bundle));
 			bundle->SetGraphicsRootSignature(rootSignature.Get());
@@ -127,6 +122,10 @@ void ExampleRender003()
 		}
 
 		gRHI.WaitForGpu();
+
+		const glm::vec4 clearColor = { 0.4f, 0.6f, 0.9f, 1.0f };
+
+		auto commandList = gRHI.GetCommandList();
 
 		while (!engine.IsShouldClose())
 		{
@@ -144,25 +143,8 @@ void ExampleRender003()
 			// Render
 			{
 				gRHI.Prepare();
-				auto commandList = gRHI.GetCommandList();
 
-				// Clear the render target.
-				{
-					const auto rtvDescriptor = gRHI.GetRenderTargetView();
-					const auto dsvDescriptor = gRHI.GetDepthStencilView();
-					const auto viewport = gRHI.GetScreenViewport();
-					const auto scissorRect = gRHI.GetScissorRect();
-
-					PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Clear");
-
-					commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
-					commandList->ClearRenderTargetView(rtvDescriptor, clearColor, 0, nullptr);
-					commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-					commandList->RSSetViewports(1, &viewport);
-					commandList->RSSetScissorRects(1, &scissorRect);
-
-					PIXEndEvent(commandList);
-				}
+				gRHI.ClearFrameBuffer(clearColor);
 
 				PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Render");
 				{
@@ -174,9 +156,7 @@ void ExampleRender003()
 				}
 				PIXEndEvent(commandList);
 
-				PIXBeginEvent(PIX_COLOR_DEFAULT, L"Present");
 				gRHI.Present();
-				PIXEndEvent();
 			}
 
 			engine.EndFrame();

@@ -1,14 +1,12 @@
 ﻿#include "stdafx.h"
 
-using namespace DirectX;
-
 /*
 проблема - при создании текстуры дергается commandList, надо переделать логику так чтобы это было скрыто
 */
 
 static const UINT TextureWidth = 256;
 static const UINT TextureHeight = 256;
-static const UINT TexturePixelSize = 4;    // The number of bytes used to represent a pixel in the texture.
+static const UINT TexturePixelSize = 4; // The number of bytes used to represent a pixel in the texture.
 
 // Generate a simple black and white checkerboard texture.
 std::vector<UINT8> GenerateTextureData()
@@ -53,22 +51,25 @@ void ExampleRender002()
 	EngineApp engine;
 	if (engine.Create(engineAppCreateInfo))
 	{
-		const FLOAT clearColor[] = { 0.4f, 0.6f, 0.9f, 1.0f };
-
 		struct Vertex
 		{
-			XMFLOAT3 position;
-			XMFLOAT2 uv;
+			DirectX::XMFLOAT3 position;
+			DirectX::XMFLOAT2 uv;
 		};
 
-		ComPtr<ID3D12DescriptorHeap> srvHeap;
-		ComPtr<ID3D12RootSignature>  rootSignature;
-		ComPtr<ID3D12PipelineState>  pipelineState;
-		ComPtr<ID3D12Resource>       vertexBuffer;
-		D3D12_VERTEX_BUFFER_VIEW     vertexBufferView;
-		ComPtr<ID3D12Resource>       texture;
+		float aspectRatio = 800.0f / 600.0f;
+		// Define the geometry for a triangle.
+		Vertex triangleVertices[] =
+		{
+			{ { 0.0f, 0.25f * aspectRatio, 0.0f }, { 0.5f, 0.0f } },
+			{ { 0.25f, -0.25f * aspectRatio, 0.0f }, { 1.0f, 1.0f } },
+			{ { -0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 1.0f } }
+		};
+
+		const UINT vertexBufferSize = sizeof(triangleVertices);
 
 		// Create descriptor heaps.
+		ComPtr<ID3D12DescriptorHeap> srvHeap;
 		{
 			// Describe and create a shader resource view (SRV) heap for the texture.
 			D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
@@ -79,6 +80,7 @@ void ExampleRender002()
 		}
 
 		// Create the root signature.
+		ComPtr<ID3D12RootSignature>  rootSignature;
 		{
 			D3D12_FEATURE_DATA_ROOT_SIGNATURE featureData = {};
 			// This is the highest version the sample supports. If CheckFeatureSupport succeeds, the HighestVersion returned will not be greater than this.
@@ -119,6 +121,7 @@ void ExampleRender002()
 		}
 
 		// Create the pipeline state, which includes compiling and loading shaders.
+		ComPtr<ID3D12PipelineState>  pipelineState;
 		{
 			ComPtr<ID3DBlob> vertexShader;
 			ComPtr<ID3DBlob> pixelShader;
@@ -159,18 +162,8 @@ void ExampleRender002()
 		}
 
 		// Create the vertex buffer.
+		ComPtr<ID3D12Resource>       vertexBuffer;
 		{
-			float aspectRatio = 800.0f / 600.0f;
-			// Define the geometry for a triangle.
-			Vertex triangleVertices[] =
-			{
-				{ { 0.0f, 0.25f * aspectRatio, 0.0f }, { 0.5f, 0.0f } },
-				{ { 0.25f, -0.25f * aspectRatio, 0.0f }, { 1.0f, 1.0f } },
-				{ { -0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 1.0f } }
-			};
-
-			const UINT vertexBufferSize = sizeof(triangleVertices);
-
 			// Note: using upload heaps to transfer static data like vert buffers is not 
 			// recommended. Every time the GPU needs it, the upload heap will be marshalled 
 			// over. Please read up on Default Heap usage. An upload heap is used here for 
@@ -191,12 +184,14 @@ void ExampleRender002()
 			vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin));
 			memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
 			vertexBuffer->Unmap(0, nullptr);
-
-			// Initialize the vertex buffer view.
-			vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-			vertexBufferView.StrideInBytes = sizeof(Vertex);
-			vertexBufferView.SizeInBytes = vertexBufferSize;
 		}
+
+		// Create the vertex buffer view.
+		D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+		// Initialize the vertex buffer view.
+		vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
+		vertexBufferView.StrideInBytes = sizeof(Vertex);
+		vertexBufferView.SizeInBytes = vertexBufferSize;
 
 		// Note: ComPtr's are CPU objects but this resource needs to stay in scope until
 		// the command list that references it has finished executing on the GPU.
@@ -205,6 +200,7 @@ void ExampleRender002()
 		ComPtr<ID3D12Resource> textureUploadHeap;
 
 		// Create the texture.
+		ComPtr<ID3D12Resource>       texture;
 		{
 			// Describe and create a Texture2D.
 			D3D12_RESOURCE_DESC textureDesc = {};
@@ -265,11 +261,12 @@ void ExampleRender002()
 			gRHI.GetD3DDevice()->CreateShaderResourceView(texture.Get(), &srvDesc, srvHeap->GetCPUDescriptorHandleForHeapStart());
 		}
 		// Close the command list and execute it to begin the initial GPU setup.
-		gRHI.commandList->Close();
-		ID3D12CommandList* ppCommandLists[] = { gRHI.commandList.Get() };
-		gRHI.commandQueue.Get()->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
-
+		auto commandList = gRHI.GetCommandList();
+		commandList->Close();
+		gRHI.commandQueue.ExecuteCommandList(commandList);
 		gRHI.WaitForGpu();
+
+		const glm::vec4 clearColor = { 0.4f, 0.6f, 0.9f, 1.0f };
 
 		while (!engine.IsShouldClose())
 		{
@@ -287,31 +284,13 @@ void ExampleRender002()
 			// Render
 			{
 				gRHI.Prepare();
-				auto commandList = gRHI.GetCommandList();
 
-				// Clear the render target.
-				{
-					const auto rtvDescriptor = gRHI.GetRenderTargetView();
-					const auto dsvDescriptor = gRHI.GetDepthStencilView();
-					const auto viewport = gRHI.GetScreenViewport();
-					const auto scissorRect = gRHI.GetScissorRect();
-
-					PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Clear");
-
-					commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
-					commandList->ClearRenderTargetView(rtvDescriptor, clearColor, 0, nullptr);
-					commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-					commandList->RSSetViewports(1, &viewport);
-					commandList->RSSetScissorRects(1, &scissorRect);
-
-					PIXEndEvent(commandList);
-				}
+				gRHI.ClearFrameBuffer(clearColor);
 
 				PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Render");
 				{
-					commandList->SetPipelineState(pipelineState.Get());
-
 					commandList->SetGraphicsRootSignature(rootSignature.Get());
+					commandList->SetPipelineState(pipelineState.Get());
 
 					ID3D12DescriptorHeap* ppHeaps[] = { srvHeap.Get() };
 					commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
@@ -323,9 +302,7 @@ void ExampleRender002()
 				}
 				PIXEndEvent(commandList);
 
-				PIXBeginEvent(PIX_COLOR_DEFAULT, L"Present");
 				gRHI.Present();
-				PIXEndEvent();
 			}
 
 			engine.EndFrame();

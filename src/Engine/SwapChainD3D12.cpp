@@ -123,7 +123,7 @@ bool SwapChainD3D12::Present()
 
 	UINT syncInterval = m_vSync ? 1 : 0;
 	UINT presentFlags = m_allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0;
-	//if (syncInterval == 0) presentFlags |= DXGI_PRESENT_RESTART; // DXGI_PRESENT_RESTART означает, что мы разрешаем получать буферы не по порядку, например 0, 1, 2, 1, 0, 2
+	if (syncInterval == 0) presentFlags |= DXGI_PRESENT_RESTART; // DXGI_PRESENT_RESTART означает, что мы разрешаем получать буферы не по порядку, например 0, 1, 2, 1, 0, 2
 	// TODO: проверить работу флагов Present
 
 	HRESULT result = m_swapChain->Present(syncInterval, presentFlags);

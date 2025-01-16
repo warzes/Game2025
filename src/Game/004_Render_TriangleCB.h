@@ -1,37 +1,25 @@
 ﻿#include "stdafx.h"
 
-using namespace DirectX;
-
 void ExampleRender004()
 {
 	EngineAppCreateInfo engineAppCreateInfo{};
 	EngineApp engine;
 	if (engine.Create(engineAppCreateInfo))
 	{
-		const FLOAT clearColor[] = { 0.4f, 0.6f, 0.9f, 1.0f };
-
 		struct Vertex
 		{
-			XMFLOAT3 position;
-			XMFLOAT4 color;
+			DirectX::XMFLOAT3 position;
+			DirectX::XMFLOAT4 color;
 		};
 
 		struct SceneConstantBuffer
 		{
-			XMFLOAT4 offset;
+			DirectX::XMFLOAT4 offset;
 			float padding[60]; // Padding so the constant buffer is 256-byte aligned.
 		};
 
-		ComPtr<ID3D12RootSignature>  rootSignature;
-		ComPtr<ID3D12DescriptorHeap> cbvHeap;
-		ComPtr<ID3D12PipelineState>  pipelineState;
-		ComPtr<ID3D12Resource>       vertexBuffer;
-		D3D12_VERTEX_BUFFER_VIEW     vertexBufferView;
-		ComPtr<ID3D12Resource>       constantBuffer;
-		SceneConstantBuffer          constantBufferData{};
-		UINT8*                       pCbvDataBegin;
-
 		// Create descriptor heaps.
+		ComPtr<ID3D12DescriptorHeap> cbvHeap;
 		{
 			// Describe and create a constant buffer view (CBV) descriptor heap.
 			// Flags indicate that this descriptor heap can be bound to the pipeline 
@@ -44,6 +32,7 @@ void ExampleRender004()
 		}
 
 		// Create a root signature consisting of a descriptor table with a single CBV.
+		ComPtr<ID3D12RootSignature>  rootSignature;
 		{
 			D3D12_FEATURE_DATA_ROOT_SIGNATURE featureData = {};
 
@@ -79,6 +68,7 @@ void ExampleRender004()
 		}
 
 		// Create the pipeline state, which includes compiling and loading shaders.
+		ComPtr<ID3D12PipelineState>  pipelineState;
 		{
 			ComPtr<ID3DBlob> vertexShader;
 			ComPtr<ID3DBlob> pixelShader;
@@ -119,6 +109,8 @@ void ExampleRender004()
 		}
 
 		// Create the vertex buffer.
+		ComPtr<ID3D12Resource>       vertexBuffer;
+		D3D12_VERTEX_BUFFER_VIEW     vertexBufferView;
 		{
 			float aspectRatio = 800.0f / 600.0f;
 			// Define the geometry for a triangle.
@@ -159,6 +151,9 @@ void ExampleRender004()
 		}
 
 		// Create the constant buffer.
+		ComPtr<ID3D12Resource>       constantBuffer;
+		SceneConstantBuffer          constantBufferData{};
+		UINT8*                       pCbvDataBegin;
 		{
 			const UINT constantBufferSize = sizeof(SceneConstantBuffer);    // CB size is required to be 256-byte aligned.
 
@@ -185,6 +180,10 @@ void ExampleRender004()
 			memcpy(pCbvDataBegin, &constantBufferData, sizeof(constantBufferData));
 		}
 
+		const glm::vec4 clearColor = { 0.4f, 0.6f, 0.9f, 1.0f };
+
+		auto commandList = gRHI.GetCommandList();
+
 		while (!engine.IsShouldClose())
 		{
 			engine.BeginFrame();
@@ -209,25 +208,8 @@ void ExampleRender004()
 			// Render
 			{
 				gRHI.Prepare();
-				auto commandList = gRHI.GetCommandList();
 
-				// Clear the render target.
-				{
-					const auto rtvDescriptor = gRHI.GetRenderTargetView();
-					const auto dsvDescriptor = gRHI.GetDepthStencilView();
-					const auto viewport = gRHI.GetScreenViewport();
-					const auto scissorRect = gRHI.GetScissorRect();
-
-					PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Clear");
-
-					commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
-					commandList->ClearRenderTargetView(rtvDescriptor, clearColor, 0, nullptr);
-					commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-					commandList->RSSetViewports(1, &viewport);
-					commandList->RSSetScissorRects(1, &scissorRect);
-
-					PIXEndEvent(commandList);
-				}
+				gRHI.ClearFrameBuffer(clearColor);
 
 				PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Render");
 				{
@@ -245,9 +227,7 @@ void ExampleRender004()
 				}
 				PIXEndEvent(commandList);
 
-				PIXBeginEvent(PIX_COLOR_DEFAULT, L"Present");
 				gRHI.Present();
-				PIXEndEvent();
 			}
 
 			engine.EndFrame();

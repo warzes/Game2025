@@ -1,10 +1,5 @@
 ﻿#include "stdafx.h"
 
-using namespace DirectX;
-
-добавить урок треугольника с D3D12MA( то есть этот и с D3D12MA)
-пример Box и потом Shapes
-
 void ExampleRender001()
 {
 	EngineAppCreateInfo engineAppCreateInfo{};
@@ -13,8 +8,8 @@ void ExampleRender001()
 	{
 		struct Vertex
 		{
-			XMFLOAT3 position;
-			XMFLOAT4 color;
+			DirectX::XMFLOAT3 position;
+			DirectX::XMFLOAT4 color;
 		};
 		float aspectRatio = 800.0f / 600.0f;
 		// Define the geometry for a triangle.
