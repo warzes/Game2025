@@ -17,8 +17,8 @@ int main(
 	[[maybe_unused]] char* argv[])
 {
 #if EXAMPLE_RUN
-	ExampleRender000();
-	//ExampleRender001();
+	//ExampleRender000();
+	ExampleRender001();
 	//ExampleRender002();
 	//ExampleRender003();
 	//ExampleRender004();

@@ -123,6 +123,8 @@ bool SwapChainD3D12::Present()
 
 	UINT syncInterval = m_vSync ? 1 : 0;
 	UINT presentFlags = m_allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0;
+	//if (syncInterval == 0) presentFlags |= DXGI_PRESENT_RESTART; // DXGI_PRESENT_RESTART означает, что мы разрешаем получать буферы не по порядку, например 0, 1, 2, 1, 0, 2
+	// TODO: проверить работу флагов Present
 
 	HRESULT result = m_swapChain->Present(syncInterval, presentFlags);
 	if (FAILED(result))
@@ -156,19 +158,8 @@ void SwapChainD3D12::WaitForGPU()
 		// Schedule a Signal command in the GPU queue.
 		if (m_presentQueue->Signal(m_fence, m_fenceValues[m_currentBackBufferIndex]))
 		{
-#if 1
 			if (m_fence.WaitOnCPU(m_fenceValues[m_currentBackBufferIndex]))
 				m_fenceValues[m_currentBackBufferIndex]++;
-#else // TODO: удалить если все нормально
-			// Wait until the Signal has been processed.
-			if (SUCCEEDED(m_fence.Get()->SetEventOnCompletion(m_fenceValues[m_currentBackBufferIndex], m_fence.GetEvent())))
-			{
-				std::ignore = WaitForSingleObjectEx(m_fence.GetEvent(), INFINITE, FALSE);
-
-				// Increment the fence value for the current frame.
-				m_fenceValues[m_currentBackBufferIndex]++;
-			}
-#endif
 		}
 	}
 }

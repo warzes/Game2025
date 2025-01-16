@@ -53,9 +53,6 @@
     <ClCompile Include="HighResolutionTimer.cpp">
       <Filter>Platform\Timer</Filter>
     </ClCompile>
-    <ClCompile Include="RHIFrameworlkD3D12.cpp">
-      <Filter>RHI\Direct3D12</Filter>
-    </ClCompile>
     <ClCompile Include="StringUtils.cpp">
       <Filter>Core</Filter>
     </ClCompile>
@@ -157,9 +154,6 @@
     </ClInclude>
     <ClInclude Include="HighResolutionTimer.h">
       <Filter>Platform\Timer</Filter>
-    </ClInclude>
-    <ClInclude Include="RHIFrameworlkD3D12.h">
-      <Filter>RHI\Direct3D12</Filter>
     </ClInclude>
     <ClInclude Include="StringUtils.h">
       <Filter>Core</Filter>

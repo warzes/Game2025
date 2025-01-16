@@ -142,7 +142,7 @@ void RHIBackend::Present(D3D12_RESOURCE_STATES beforeState)
 			Fatal("ID3D12GraphicsCommandList10::Close() failed: " + DXErrorToStr(result));
 			return;
 		}
-		commandQueue.Get()->ExecuteCommandLists(1, CommandListCast(commandList.GetAddressOf()));
+		commandQueue.ExecuteCommandList(commandList);
 
 		swapChain.Present();
 		swapChain.MoveToNextFrame();
