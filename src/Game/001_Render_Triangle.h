@@ -2,6 +2,9 @@
 
 using namespace DirectX;
 
+добавить урок треугольника с D3D12MA( то есть этот и с D3D12MA)
+пример Box и потом Shapes
+
 void ExampleRender001()
 {
 	EngineAppCreateInfo engineAppCreateInfo{};
