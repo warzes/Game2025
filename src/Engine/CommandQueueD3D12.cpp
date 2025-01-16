@@ -41,4 +41,9 @@ bool CommandQueueD3D12::Signal(const FenceD3D12& fence, uint64_t FenceWaitValue)
 	return true;
 }
 //=============================================================================
+void CommandQueueD3D12::ExecuteCommandList(ComPtr<ID3D12GraphicsCommandList10> commandList)
+{
+	m_queue->ExecuteCommandLists(1, CommandListCast(commandList.GetAddressOf()));
+}
+//=============================================================================
 #endif // RENDER_D3D12

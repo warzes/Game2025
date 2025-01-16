@@ -2,32 +2,46 @@
 
 using namespace DirectX;
 
+добавить урок треугольника с D3D12MA( то есть этот и с D3D12MA)
+пример Box и потом Shapes
+
 void ExampleRender001()
 {
 	EngineAppCreateInfo engineAppCreateInfo{};
 	EngineApp engine;
 	if (engine.Create(engineAppCreateInfo))
 	{
-		const FLOAT clearColor[] = { 0.4f, 0.6f, 0.9f, 1.0f };
-
 		struct Vertex
 		{
 			XMFLOAT3 position;
 			XMFLOAT4 color;
 		};
+		float aspectRatio = 800.0f / 600.0f;
+		// Define the geometry for a triangle.
+		Vertex triangleVertices[] =
+		{
+			{ {  0.0f,   0.25f * aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
+			{ {  0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
+			{ { -0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
+		};
 
-		ComPtr<ID3D12Resource>      vertexBuffer;
-		D3D12_VERTEX_BUFFER_VIEW    vertexBufferView;
+		const UINT vertexBufferSize = sizeof(triangleVertices);
 
 		// Create an empty root signature.
 		ComPtr<ID3D12RootSignature> rootSignature;
 		{
-			CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
-			rootSignatureDesc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+			D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+			rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 			ComPtr<ID3DBlob> signature;
 			ComPtr<ID3DBlob> error;
-			D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
+			HRESULT result = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error);
+			const char* err = "";
+			if (!SUCCEEDED(result))
+			{
+				err = (char*)error->GetBufferPointer();
+				Fatal("D3D12SerializeRootSignature failed: " + std::string(err));
+			}
 			gRHI.GetD3DDevice()->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
 		}
 
@@ -73,31 +87,12 @@ void ExampleRender001()
 		}
 
 		// Create the vertex buffer.
+		ComPtr<ID3D12Resource> vertexBuffer;
 		{
-			float aspectRatio = 800.0f / 600.0f;
-			// Define the geometry for a triangle.
-			Vertex triangleVertices[] =
-			{
-				{ {  0.0f,   0.25f * aspectRatio, 0.0f }, { 1.0f, 0.0f, 0.0f, 1.0f } },
-				{ {  0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 1.0f, 0.0f, 1.0f } },
-				{ { -0.25f, -0.25f * aspectRatio, 0.0f }, { 0.0f, 0.0f, 1.0f, 1.0f } }
-			};
-
-			const UINT vertexBufferSize = sizeof(triangleVertices);
-
-			// Note: using upload heaps to transfer static data like vert buffers is not 
-			// recommended. Every time the GPU needs it, the upload heap will be marshalled 
-			// over. Please read up on Default Heap usage. An upload heap is used here for 
-			// code simplicity and because there are very few verts to actually transfer.
+			// Note: using upload heaps to transfer static data like vert buffers is not recommended. Every time the GPU needs it, the upload heap will be marshalled over. Please read up on Default Heap usage. An upload heap is used here for code simplicity and because there are very few verts to actually transfer.
 			const auto heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 			const auto desc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-			gRHI.GetD3DDevice()->CreateCommittedResource(
-				&heapProp,
-				D3D12_HEAP_FLAG_NONE,
-				&desc,
-				D3D12_RESOURCE_STATE_GENERIC_READ,
-				nullptr,
-				IID_PPV_ARGS(&vertexBuffer));
+			gRHI.GetD3DDevice()->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBuffer));
 
 			// Copy the triangle data to the vertex buffer.
 			UINT8* pVertexDataBegin;
@@ -105,12 +100,18 @@ void ExampleRender001()
 			vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin));
 			memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
 			vertexBuffer->Unmap(0, nullptr);
-
-			// Initialize the vertex buffer view.
-			vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-			vertexBufferView.StrideInBytes = sizeof(Vertex);
-			vertexBufferView.SizeInBytes = vertexBufferSize;
 		}
+
+		// Create the vertex buffer.
+		D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
+		// Initialize the vertex buffer view.
+		vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
+		vertexBufferView.StrideInBytes = sizeof(Vertex);
+		vertexBufferView.SizeInBytes = vertexBufferSize;
+
+		const glm::vec4 clearColor = { 0.4f, 0.6f, 0.9f, 1.0f };
+
+		auto commandList = gRHI.GetCommandList();
 
 		while (!engine.IsShouldClose())
 		{
@@ -128,25 +129,8 @@ void ExampleRender001()
 			// Render
 			{
 				gRHI.Prepare();
-				auto commandList = gRHI.GetCommandList();
 
-				// Clear the render target.
-				{
-					const auto rtvDescriptor = gRHI.GetRenderTargetView();
-					const auto dsvDescriptor = gRHI.GetDepthStencilView();
-					const auto viewport = gRHI.GetScreenViewport();
-					const auto scissorRect = gRHI.GetScissorRect();
-
-					PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Clear");
-
-					commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
-					commandList->ClearRenderTargetView(rtvDescriptor, clearColor, 0, nullptr);
-					commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-					commandList->RSSetViewports(1, &viewport);
-					commandList->RSSetScissorRects(1, &scissorRect);
-
-					PIXEndEvent(commandList);
-				}
+				gRHI.ClearFrameBuffer(clearColor);
 
 				PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L"Render");
 				{
@@ -158,9 +142,7 @@ void ExampleRender001()
 				}
 				PIXEndEvent(commandList);
 
-				PIXBeginEvent(PIX_COLOR_DEFAULT, L"Present");
 				gRHI.Present();
-				PIXEndEvent();
 			}
 
 			engine.EndFrame();

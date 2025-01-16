@@ -29,17 +29,21 @@ public:
 
 	void WaitForGpu();
 
+	void ClearFrameBuffer(const glm::vec4& color);
+
 	auto GetD3DDevice() const noexcept { return context.GetD3DDevice(); }
-	auto GetCommandQueue() const noexcept { return commandQueue.Get().Get(); }
+	//auto GetCommandQueue() const noexcept { return commandQueue.Get().Get(); }
 	auto GetCommandList() const noexcept { return commandList.Get(); }
 	auto GetCurrentCommandAllocator() const noexcept { return commandAllocators[swapChain.GetCurrentBackBufferIndex()].Get(); }
 
-	auto GetScreenViewport() const noexcept { return screenViewport; }
-	auto GetScissorRect() const noexcept { return scissorRect; }
+	auto GetScreenViewport() const noexcept { return swapChain.GetScreenViewport(); }
+	auto GetScissorRect() const noexcept { return swapChain.GetScissorRect(); }
+	auto GetFrameBufferWidth() const noexcept { return swapChain.GetFrameBufferWidth(); }
+	auto GetFrameBufferHeight() const noexcept { return swapChain.GetFrameBufferHeight(); }
+
 	auto GetCurrentFrameIndex() const noexcept { return swapChain.GetCurrentBackBufferIndex(); }
 
 	auto GetBackBufferFormat() const noexcept { return swapChain.GetFormat(); }
-	//auto GetDepthBufferFormat() const noexcept { return depthBufferFormat; }
 
 	auto GetRenderTargetView() const noexcept
 	{
@@ -62,16 +66,8 @@ public:
 	StagingDescriptorHeapD3D12*         DSVStagingDescriptorHeap{ nullptr };
 	StagingDescriptorHeapD3D12*         CBVSRVUAVStagingDescriptorHeap{ nullptr };
 
-	D3D12_VIEWPORT                      screenViewport{};
-	D3D12_RECT                          scissorRect{};
-	uint32_t                            frameBufferWidth{ 0 };
-	uint32_t                            frameBufferHeight{ 0 };
-
 private:
-	void resetVal();
-	bool setSize(uint32_t width, uint32_t height);
 	bool createDescriptorHeap();
-	void updateViewport();
 };
 
 extern RHIBackend gRHI;

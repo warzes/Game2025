@@ -8,13 +8,10 @@ public:
 	bool Create(ID3D12Device14* device, const char* debugName = nullptr);
 	void Destroy();
 
-	bool WaitOnCPU(uint64_t FenceWaitValue) const;
+	bool WaitOnCPU(uint64_t FenceWaitValue, DWORD timeout = INFINITE) const;
 
 	operator ComPtr<ID3D12Fence>() const { return m_fence; }
 	operator ID3D12Fence*() const { return m_fence.Get(); }
-	auto Get() const { return m_fence; }
-	auto GetRef() const { return m_fence.Get(); }
-	auto GetEvent() const { return m_event.Get(); }
 
 	bool IsValid() const { return m_fence && m_event.IsValid(); }
 
