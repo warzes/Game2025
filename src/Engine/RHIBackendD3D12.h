@@ -60,15 +60,21 @@ public:
 	ContextD3D12                        context;
 	SwapChainD3D12                      swapChain;
 
-	CommandQueueD3D12                   commandQueue;
+	CommandQueueD3D12                   graphicsQueue;
+	CommandQueueD3D12                   computeQueue;
+	CommandQueueD3D12                   copyQueue;
+
 	ComPtr<ID3D12GraphicsCommandList10> commandList;
 	ComPtr<ID3D12CommandAllocator>      commandAllocators[MAX_BACK_BUFFER_COUNT];
 
 	StagingDescriptorHeapD3D12*         RTVStagingDescriptorHeap{ nullptr };
 	StagingDescriptorHeapD3D12*         DSVStagingDescriptorHeap{ nullptr };
 	StagingDescriptorHeapD3D12*         CBVSRVUAVStagingDescriptorHeap{ nullptr };
+	RenderPassDescriptorHeapD3D12*      samplerRenderPassDescriptorHeap{ nullptr };
+	RenderPassDescriptorHeapD3D12*      CBVSRVUAVRenderPassDescriptorHeaps[MAX_BACK_BUFFER_COUNT]{};
 
 private:
+	bool createCommandQueue();
 	bool createDescriptorHeap();
 };
 

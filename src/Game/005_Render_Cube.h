@@ -1,5 +1,11 @@
 ﻿#include "stdafx.h"
 
+/*
+бигвил
+ллгл
+
+*/
+
 namespace e005
 {
 
@@ -44,8 +50,6 @@ void ExampleRender005()
 			}
 			gRHI.GetD3DDevice()->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
 		}
-
-
 
 		// Create the pipeline state, which includes compiling and loading shaders.
 		ComPtr<ID3D12PipelineState> pipelineState;

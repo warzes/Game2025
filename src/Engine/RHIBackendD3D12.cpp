@@ -18,14 +18,14 @@ RHIBackend gRHI{};
 bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateInfo& createInfo)
 {
 	if (!context.Create(createInfo.context)) return false;
-	if (!commandQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_DIRECT, "Main Render Command Queue")) return false;
+	if (!createCommandQueue()) return false;
 	if (!createDescriptorHeap()) return false;
 
 	SwapChainD3D12CreateInfo swapChainCreateInfo = { .windowData = wndData };
 	swapChainCreateInfo.factory                  = context.GetD3DFactory();
 	swapChainCreateInfo.device                   = context.GetD3DDevice();
 	swapChainCreateInfo.allocator                = context.GetD3DAllocator();
-	swapChainCreateInfo.presentQueue             = &commandQueue;
+	swapChainCreateInfo.presentQueue             = &graphicsQueue;
 	swapChainCreateInfo.RTVStagingDescriptorHeap = RTVStagingDescriptorHeap;
 	swapChainCreateInfo.DSVStagingDescriptorHeap = DSVStagingDescriptorHeap;
 	swapChainCreateInfo.allowTearing             = context.IsSupportAllowTearing();
@@ -66,13 +66,21 @@ void RHIBackend::DestroyAPI()
 		commandAllocators[i].Reset();
 	}
 	commandList.Reset();
-	commandQueue.Destroy();
+	copyQueue.Destroy();
+	computeQueue.Destroy();
+	graphicsQueue.Destroy();
 
 	swapChain.Destroy();
 
 	delete RTVStagingDescriptorHeap; RTVStagingDescriptorHeap = nullptr;
 	delete DSVStagingDescriptorHeap; DSVStagingDescriptorHeap = nullptr;
 	delete CBVSRVUAVStagingDescriptorHeap; CBVSRVUAVStagingDescriptorHeap = nullptr;
+	delete samplerRenderPassDescriptorHeap; samplerRenderPassDescriptorHeap = nullptr;
+	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
+	{
+		delete CBVSRVUAVRenderPassDescriptorHeaps[i];
+		CBVSRVUAVRenderPassDescriptorHeaps[i] = nullptr;
+	}
 
 	context.Destroy();
 }
@@ -142,7 +150,7 @@ void RHIBackend::Present(D3D12_RESOURCE_STATES beforeState)
 			Fatal("ID3D12GraphicsCommandList10::Close() failed: " + DXErrorToStr(result));
 			return;
 		}
-		commandQueue.ExecuteCommandList(commandList);
+		graphicsQueue.ExecuteCommandList(commandList);
 
 		swapChain.Present();
 		swapChain.MoveToNextFrame();
@@ -173,6 +181,17 @@ void RHIBackend::ClearFrameBuffer(const glm::vec4& color)
 	PIXEndEvent(commandList.Get());
 }
 //=============================================================================
+bool RHIBackend::createCommandQueue()
+{
+	if (!graphicsQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_DIRECT, "Main Graphics Command Queue")) return false;
+
+	if (!computeQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_COMPUTE, "Main Compute Command Queue")) return false;
+
+	if (!copyQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_COPY, "Main Copy Command Queue")) return false;
+
+	return true;
+}
+//=============================================================================
 bool RHIBackend::createDescriptorHeap()
 {
 	RTVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_RTV_STAGING_DESCRIPTORS);
@@ -193,6 +212,23 @@ bool RHIBackend::createDescriptorHeap()
 		Fatal("Create CBVSRVUAVStagingDescriptorHeap failed.");
 		return false;
 	}
+
+	samplerRenderPassDescriptorHeap = new RenderPassDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 0, NUM_SAMPLER_DESCRIPTORS);
+	if (IsRequestExit())
+	{
+		Fatal("Create samplerRenderPassDescriptorHeap failed.");
+		return false;
+	}
+	for (uint32_t frameIndex = 0; frameIndex < MAX_BACK_BUFFER_COUNT; frameIndex++)
+	{
+		CBVSRVUAVRenderPassDescriptorHeaps[frameIndex] = new RenderPassDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_RESERVED_SRV_DESCRIPTORS, NUM_SRV_RENDER_PASS_USER_DESCRIPTORS);
+		if (IsRequestExit())
+		{
+			Fatal("Create SRVRenderPassDescriptorHeaps failed.");
+			return false;
+		}
+	}
+
 	return true;
 }
 //=============================================================================

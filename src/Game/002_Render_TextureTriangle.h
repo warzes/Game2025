@@ -1,8 +1,6 @@
 ﻿#include "stdafx.h"
 
-/*
-проблема - при создании текстуры дергается commandList, надо переделать логику так чтобы это было скрыто
-*/
+/*проблема - при создании текстуры дергается commandList, надо переделать логику так чтобы это было скрыто*/
 
 static const UINT TextureWidth = 256;
 static const UINT TextureHeight = 256;
@@ -69,15 +67,16 @@ void ExampleRender002()
 		const UINT vertexBufferSize = sizeof(triangleVertices);
 
 		// Create descriptor heaps.
-		ComPtr<ID3D12DescriptorHeap> srvHeap;
-		{
-			// Describe and create a shader resource view (SRV) heap for the texture.
-			D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-			srvHeapDesc.NumDescriptors = 1;
-			srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-			srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-			gRHI.GetD3DDevice()->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap));
-		}
+		DescriptorD3D12 srvDescriptor = gRHI.CBVSRVUAVRenderPassDescriptorHeaps[0]->AllocateUserDescriptorBlock(1);
+		//ComPtr<ID3D12DescriptorHeap> srvHeap;
+		//{
+		//	// Describe and create a shader resource view (SRV) heap for the texture.
+		//	D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+		//	srvHeapDesc.NumDescriptors = 1;
+		//	srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		//	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		//	gRHI.GetD3DDevice()->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&srvHeap));
+		//}
 
 		// Create the root signature.
 		ComPtr<ID3D12RootSignature>  rootSignature;
@@ -258,12 +257,12 @@ void ExampleRender002()
 			srvDesc.Format = textureDesc.Format;
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 			srvDesc.Texture2D.MipLevels = 1;
-			gRHI.GetD3DDevice()->CreateShaderResourceView(texture.Get(), &srvDesc, srvHeap->GetCPUDescriptorHandleForHeapStart());
+			gRHI.GetD3DDevice()->CreateShaderResourceView(texture.Get(), &srvDesc, srvDescriptor.CPUHandle);
 		}
 		// Close the command list and execute it to begin the initial GPU setup.
 		auto commandList = gRHI.GetCommandList();
 		commandList->Close();
-		gRHI.commandQueue.ExecuteCommandList(commandList);
+		gRHI.graphicsQueue.ExecuteCommandList(commandList);
 		gRHI.WaitForGpu();
 
 		const glm::vec4 clearColor = { 0.4f, 0.6f, 0.9f, 1.0f };
@@ -292,9 +291,9 @@ void ExampleRender002()
 					commandList->SetGraphicsRootSignature(rootSignature.Get());
 					commandList->SetPipelineState(pipelineState.Get());
 
-					ID3D12DescriptorHeap* ppHeaps[] = { srvHeap.Get() };
+					ID3D12DescriptorHeap* ppHeaps[] = { gRHI.CBVSRVUAVRenderPassDescriptorHeaps[0]->GetD3DHeap().Get() };
 					commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-					commandList->SetGraphicsRootDescriptorTable(0, srvHeap->GetGPUDescriptorHandleForHeapStart());
+					commandList->SetGraphicsRootDescriptorTable(0, srvDescriptor.GPUHandle);
 			
 					commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 					commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
@@ -308,7 +307,6 @@ void ExampleRender002()
 			engine.EndFrame();
 		}
 
-		srvHeap.Reset();
 		rootSignature.Reset();
 		pipelineState.Reset();
 		vertexBuffer.Reset();

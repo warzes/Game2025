@@ -20,10 +20,10 @@ int main(
 #if EXAMPLE_RUN
 	//ExampleRender000();
 	//ExampleRender001();
-	//ExampleRender002();
+	ExampleRender002();
 	//ExampleRender003();
 	//ExampleRender004();
-	ExampleRender005();
+	//ExampleRender005();
 #else
 	extern void GameApp();
 	GameApp();
