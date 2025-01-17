@@ -38,9 +38,6 @@
     <ClCompile Include="oCommandQueueD3D12.cpp">
       <Filter>RHI\Direct3D12\old</Filter>
     </ClCompile>
-    <ClCompile Include="oDescriptorHeapD3D12.cpp">
-      <Filter>RHI\Direct3D12\old</Filter>
-    </ClCompile>
     <ClCompile Include="RHIResourcesD3D12.cpp">
       <Filter>RHI\Direct3D12</Filter>
     </ClCompile>
@@ -135,9 +132,6 @@
       <Filter>RHI\Direct3D12\old</Filter>
     </ClInclude>
     <ClInclude Include="oCommandQueueD3D12.h">
-      <Filter>RHI\Direct3D12\old</Filter>
-    </ClInclude>
-    <ClInclude Include="oDescriptorHeapD3D12.h">
       <Filter>RHI\Direct3D12\old</Filter>
     </ClInclude>
     <ClInclude Include="RHIResourcesD3D12.h">

@@ -3,6 +3,7 @@
 #if RENDER_D3D12
 
 #include "RenderCore.h"
+#include "RHICoreD3D12.h"
 
 constexpr uint32_t    NUM_FRAMES_IN_FLIGHT = 2;
 constexpr uint32_t    oNUM_RTV_STAGING_DESCRIPTORS = 256;
@@ -142,16 +143,6 @@ struct TextureCreationDesc final
 	TextureViewFlags    viewFlags{ TextureViewFlags::none };
 };
 
-struct Descriptor final
-{
-	bool IsValid() const { return CPUHandle.ptr != 0; }
-	bool IsReferencedByShader() const { return GPUHandle.ptr != 0; }
-
-	D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle{ 0 };
-	D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle{ 0 };
-	uint32_t                    heapIndex{ 0 };
-};
-
 struct Resource
 {
 	oGPUResourceType             type{ oGPUResourceType::buffer };
@@ -179,9 +170,9 @@ struct BufferResource final : public Resource
 
 	uint8_t*   mappedResource{ nullptr };
 	uint32_t   stride{ 0 };
-	Descriptor CBVDescriptor{};
-	Descriptor SRVDescriptor{};
-	Descriptor UAVDescriptor{};
+	DescriptorD3D12 CBVDescriptor{};
+	DescriptorD3D12 SRVDescriptor{};
+	DescriptorD3D12 UAVDescriptor{};
 };
 
 struct TextureResource final : public Resource
@@ -191,10 +182,10 @@ struct TextureResource final : public Resource
 		type = oGPUResourceType::texture;
 	}
 
-	Descriptor RTVDescriptor{};
-	Descriptor DSVDescriptor{};
-	Descriptor SRVDescriptor{};
-	Descriptor UAVDescriptor{};
+	DescriptorD3D12 RTVDescriptor{};
+	DescriptorD3D12 DSVDescriptor{};
+	DescriptorD3D12 SRVDescriptor{};
+	DescriptorD3D12 UAVDescriptor{};
 };
 
 struct PipelineResourceBinding final

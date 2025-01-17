@@ -105,7 +105,6 @@
     <ClInclude Include="HighResolutionTimer.h" />
     <ClInclude Include="Monitor.h" />
     <ClInclude Include="oCommandContextD3D12.h" />
-    <ClInclude Include="oDescriptorHeapD3D12.h" />
     <ClInclude Include="oCommandQueueD3D12.h" />
     <ClInclude Include="oRenderCoreD3D12.h" />
     <ClInclude Include="EngineApp.h" />
@@ -139,7 +138,6 @@
     <ClCompile Include="HighResolutionTimer.cpp" />
     <ClCompile Include="Monitor.cpp" />
     <ClCompile Include="oCommandContextD3D12.cpp" />
-    <ClCompile Include="oDescriptorHeapD3D12.cpp" />
     <ClCompile Include="EngineApp.cpp" />
     <ClCompile Include="InputSystemWin32.cpp" />
     <ClCompile Include="KeyboardWin32.cpp" />

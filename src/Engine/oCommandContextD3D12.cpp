@@ -97,8 +97,8 @@ void CommandContextD3D12::bindDescriptorHeaps(uint32_t frameIndex)
 	m_currentSRVHeap->Reset();
 
 	ID3D12DescriptorHeap* heapsToBind[2];
-	heapsToBind[0] = ogRHI.GetSRVHeap(frameIndex).GetHeap().Get();
-	heapsToBind[1] = ogRHI.GetSamplerHeap().GetHeap().Get();
+	heapsToBind[0] = ogRHI.GetSRVHeap(frameIndex).GetD3DHeap().Get();
+	heapsToBind[1] = ogRHI.GetSamplerHeap().GetD3DHeap().Get();
 
 	m_commandList->SetDescriptorHeaps(2, heapsToBind);
 }
@@ -287,7 +287,7 @@ void GraphicsCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const P
 		}
 	}
 
-	Descriptor blockStart = m_currentSRVHeap->AllocateUserDescriptorBlock(numTableHandles);
+	DescriptorD3D12 blockStart = m_currentSRVHeap->AllocateUserDescriptorBlock(numTableHandles);
 	CopyDescriptors(1, &blockStart.CPUHandle, &numTableHandles, numTableHandles, handles, singleDescriptorRangeCopyArray, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	auto& tableMapping = m_currentPipeline->pipelineResourceMapping.tableMapping[spaceId];
@@ -447,7 +447,7 @@ void ComputeCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const Pi
 		}
 	}
 
-	Descriptor blockStart = m_currentSRVHeap->AllocateUserDescriptorBlock(numTableHandles);
+	DescriptorD3D12 blockStart = m_currentSRVHeap->AllocateUserDescriptorBlock(numTableHandles);
 	CopyDescriptors(1, &blockStart.CPUHandle, &numTableHandles, numTableHandles, handles, singleDescriptorRangeCopyArray, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	auto& tableMapping = m_currentPipeline->pipelineResourceMapping.tableMapping[spaceId];

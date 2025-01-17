@@ -2,7 +2,8 @@
 
 #if RENDER_D3D12
 
-#include "oDescriptorHeapD3D12.h"
+#include "oRenderCoreD3D12.h"
+#include "DescriptorHeapD3D12.h"
 
 class CommandContextD3D12
 {
@@ -29,7 +30,7 @@ protected:
 	ComPtr<ID3D12CommandAllocator>      m_commandAllocators[NUM_FRAMES_IN_FLIGHT]{};
 	D3D12_RESOURCE_BARRIER              m_resourceBarriers[MAX_QUEUED_BARRIERS]{};
 	uint32_t                            m_numQueuedBarriers{ 0 };
-	RenderPassDescriptorHeap*           m_currentSRVHeap{ nullptr };
+	RenderPassDescriptorHeapD3D12*        m_currentSRVHeap{ nullptr };
 	D3D12_CPU_DESCRIPTOR_HANDLE         m_currentSRVHeapHandle{ 0 };
 };
 

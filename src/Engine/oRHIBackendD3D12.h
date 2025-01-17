@@ -6,7 +6,7 @@
 #include "oCommandContextD3D12.h"
 #include "oRHIBackendD3D12.h"
 #include "oCommandQueueD3D12.h"
-#include "oDescriptorHeapD3D12.h"
+#include "DescriptorHeapD3D12.h"
 
 struct WindowData;
 
@@ -32,12 +32,12 @@ public:
 	void Present();
 
 	uint32_t GetCurrentBackBufferIndex() const { return currentBackBufferIndex; }
-	RenderPassDescriptorHeap& GetSamplerHeap() { return *samplerRenderPassDescriptorHeap; }
-	RenderPassDescriptorHeap& GetSRVHeap(uint32_t frameIndex) { return *CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]; }
+	RenderPassDescriptorHeapD3D12& GetSamplerHeap() { return *samplerRenderPassDescriptorHeap; }
+	RenderPassDescriptorHeapD3D12& GetSRVHeap(uint32_t frameIndex) { return *CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]; }
 
 	TextureResource& GetCurrentBackBuffer();
 
-	Descriptor& GetImguiDescriptor(uint32_t index) { return ImguiDescriptors[index]; }
+	DescriptorD3D12& GetImguiDescriptor(uint32_t index) { return ImguiDescriptors[index]; }
 	UploadCommandContextD3D12& GetUploadContextForCurrentFrame() { return *uploadContexts[currentBackBufferIndex]; }
 
 	ComPtr<IDXGIAdapter4>        adapter{ nullptr };
@@ -48,12 +48,12 @@ public:
 	oCommandQueueD3D12*           computeQueue{ nullptr };
 	oCommandQueueD3D12*           copyQueue{ nullptr };
 
-	StagingDescriptorHeap*       RTVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeap*       DSVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeap*       CBVSRVUAVStagingDescriptorHeap{ nullptr };
-	RenderPassDescriptorHeap*    samplerRenderPassDescriptorHeap{ nullptr };
-	RenderPassDescriptorHeap*    CBVSRVUAVRenderPassDescriptorHeaps[NUM_FRAMES_IN_FLIGHT]{};
-	Descriptor                   ImguiDescriptors[NUM_FRAMES_IN_FLIGHT]{};
+	StagingDescriptorHeapD3D12*       RTVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeapD3D12*       DSVStagingDescriptorHeap{ nullptr };
+	StagingDescriptorHeapD3D12*       CBVSRVUAVStagingDescriptorHeap{ nullptr };
+	RenderPassDescriptorHeapD3D12*    samplerRenderPassDescriptorHeap{ nullptr };
+	RenderPassDescriptorHeapD3D12*    CBVSRVUAVRenderPassDescriptorHeaps[NUM_FRAMES_IN_FLIGHT]{};
+	DescriptorD3D12                   ImguiDescriptors[NUM_FRAMES_IN_FLIGHT]{};
 
 	ComPtr<IDXGISwapChain4>      swapChain;
 	TextureResource*             backBuffers[MAX_BACK_BUFFER_COUNT]{};

@@ -33,6 +33,7 @@ public:
 
 	auto GetD3DDevice() const noexcept { return context.GetD3DDevice(); }
 	auto GetD3DAllocator() const noexcept { return context.GetD3DAllocator(); }
+	
 	auto GetCommandList() const noexcept { return commandList.Get(); }
 	auto GetCurrentCommandAllocator() const noexcept { return commandAllocators[swapChain.GetCurrentBackBufferIndex()].Get(); }
 
@@ -44,6 +45,7 @@ public:
 	auto GetCurrentFrameIndex() const noexcept { return swapChain.GetCurrentBackBufferIndex(); }
 
 	auto GetBackBufferFormat() const noexcept { return swapChain.GetFormat(); }
+	auto GetDepthStencilFormat() const noexcept { return swapChain.GetDepthStencilFormat(); }
 
 	auto GetRenderTargetView() const noexcept
 	{

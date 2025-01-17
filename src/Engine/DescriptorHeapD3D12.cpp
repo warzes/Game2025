@@ -93,4 +93,67 @@ void StagingDescriptorHeapD3D12::FreeDescriptor(DescriptorD3D12& descriptor)
 	m_activeHandleCount--;
 }
 //=============================================================================
+RenderPassDescriptorHeapD3D12::RenderPassDescriptorHeapD3D12(ComPtr<ID3D12Device14> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t reservedCount, uint32_t userCount)
+	: DescriptorHeapD3D12(device, heapType, reservedCount + userCount, true)
+	, m_reservedHandleCount(reservedCount)
+	, m_currentDescriptorIndex(reservedCount)
+{
+}
+//=============================================================================
+DescriptorD3D12 RenderPassDescriptorHeapD3D12::GetReservedDescriptor(uint32_t index)
+{
+	assert(index < m_reservedHandleCount);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_heapStart.CPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_heapStart.GPUHandle;
+	cpuHandle.ptr += static_cast<uint64_t>(index) * m_descriptorSize;
+	gpuHandle.ptr += static_cast<uint64_t>(index) * m_descriptorSize;
+
+	DescriptorD3D12 descriptor;
+	descriptor.heapIndex = index;
+	descriptor.CPUHandle = cpuHandle;
+	descriptor.GPUHandle = gpuHandle;
+
+	return descriptor;
+}
+//=============================================================================
+DescriptorD3D12 RenderPassDescriptorHeapD3D12::AllocateUserDescriptorBlock(uint32_t count)
+{
+	uint32_t newHandleID = 0;
+
+	{
+		std::lock_guard<std::mutex> lockGuard(m_usageMutex);
+
+		uint32_t blockEnd = m_currentDescriptorIndex + count;
+
+		if (blockEnd <= m_maxDescriptors)
+		{
+			newHandleID = m_currentDescriptorIndex;
+			m_currentDescriptorIndex = blockEnd;
+		}
+		else
+		{
+			Fatal("Ran out of render pass descriptor heap handles, need to increase heap size.");
+		}
+	}
+
+	DescriptorD3D12 newDescriptor;
+	newDescriptor.heapIndex = newHandleID;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_heapStart.CPUHandle;
+	cpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
+	newDescriptor.CPUHandle = cpuHandle;
+
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_heapStart.GPUHandle;
+	gpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
+	newDescriptor.GPUHandle = gpuHandle;
+
+	return newDescriptor;
+}
+//=============================================================================
+void RenderPassDescriptorHeapD3D12::Reset()
+{
+	m_currentDescriptorIndex = m_reservedHandleCount;
+}
+//=============================================================================
 #endif // RENDER_D3D12

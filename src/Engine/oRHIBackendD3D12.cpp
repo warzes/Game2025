@@ -14,11 +14,11 @@ void D3D12MessageFuncion(D3D12_MESSAGE_CATEGORY Category, D3D12_MESSAGE_SEVERITY
 }
 #endif // RHI_VALIDATION_ENABLED
 //=============================================================================
-void CopySRVHandleToReservedTable(Descriptor srvHandle, uint32_t index)
+void CopySRVHandleToReservedTable(DescriptorD3D12 srvHandle, uint32_t index)
 {
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
-		Descriptor targetDescriptor = ogRHI.CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(index);
+		DescriptorD3D12 targetDescriptor = ogRHI.CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(index);
 
 		CopyDescriptorsSimple(1, targetDescriptor.CPUHandle, srvHandle.CPUHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	}
@@ -112,7 +112,7 @@ bool oRHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateI
 		samplerDescs[5].MinLOD = 0;
 		samplerDescs[5].MaxLOD = D3D12_FLOAT32_MAX;
 
-		Descriptor samplerDescriptorBlock = samplerRenderPassDescriptorHeap->AllocateUserDescriptorBlock(NUM_SAMPLER_DESCRIPTORS);
+		DescriptorD3D12 samplerDescriptorBlock = samplerRenderPassDescriptorHeap->AllocateUserDescriptorBlock(NUM_SAMPLER_DESCRIPTORS);
 		D3D12_CPU_DESCRIPTOR_HANDLE currentSamplerDescriptor = samplerDescriptorBlock.CPUHandle;
 
 		for (uint32_t samplerIndex = 0; samplerIndex < NUM_SAMPLER_DESCRIPTORS; samplerIndex++)
@@ -439,25 +439,25 @@ bool oRHIBackend::createCommandQueue()
 //=============================================================================
 bool oRHIBackend::createDescriptorHeap()
 {
-	RTVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, oNUM_RTV_STAGING_DESCRIPTORS);
+	RTVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, oNUM_RTV_STAGING_DESCRIPTORS);
 	if (IsRequestExit())
 	{
 		Fatal("Create RTVStagingDescriptorHeap failed.");
 		return false;
 	}
-	DSVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, oNUM_DSV_STAGING_DESCRIPTORS);
+	DSVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(device, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, oNUM_DSV_STAGING_DESCRIPTORS);
 	if (IsRequestExit())
 	{
 		Fatal("Create DSVStagingDescriptorHeap failed.");
 		return false;
 	}
-	CBVSRVUAVStagingDescriptorHeap = new StagingDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, oNUM_SRV_STAGING_DESCRIPTORS);
+	CBVSRVUAVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, oNUM_SRV_STAGING_DESCRIPTORS);
 	if (IsRequestExit())
 	{
 		Fatal("Create CBVSRVUAVStagingDescriptorHeap failed.");
 		return false;
 	}
-	samplerRenderPassDescriptorHeap = new RenderPassDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 0, NUM_SAMPLER_DESCRIPTORS);
+	samplerRenderPassDescriptorHeap = new RenderPassDescriptorHeapD3D12(device, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 0, NUM_SAMPLER_DESCRIPTORS);
 	if (IsRequestExit())
 	{
 		Fatal("Create samplerRenderPassDescriptorHeap failed.");
@@ -465,7 +465,7 @@ bool oRHIBackend::createDescriptorHeap()
 	}
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
-		CBVSRVUAVRenderPassDescriptorHeaps[frameIndex] = new RenderPassDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_RESERVED_SRV_DESCRIPTORS, NUM_SRV_RENDER_PASS_USER_DESCRIPTORS);
+		CBVSRVUAVRenderPassDescriptorHeaps[frameIndex] = new RenderPassDescriptorHeapD3D12(device, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_RESERVED_SRV_DESCRIPTORS, NUM_SRV_RENDER_PASS_USER_DESCRIPTORS);
 		ImguiDescriptors[frameIndex] = CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(IMGUI_RESERVED_DESCRIPTOR_INDEX);
 		if (IsRequestExit())
 		{
@@ -546,7 +546,7 @@ bool oRHIBackend::createMainRenderTarget()
 		rtvDesc.Texture2D.MipSlice            = 0;
 		rtvDesc.Texture2D.PlaneSlice          = 0;
 
-		Descriptor backBufferRTVHandle = RTVStagingDescriptorHeap->GetNewDescriptor();
+		DescriptorD3D12 backBufferRTVHandle = RTVStagingDescriptorHeap->GetNewDescriptor();
 
 		device->CreateRenderTargetView(backBufferResource.Get(), &rtvDesc, backBufferRTVHandle.CPUHandle);
 

@@ -41,5 +41,19 @@ private:
 	std::mutex            m_usageMutex;
 };
 
+class RenderPassDescriptorHeapD3D12 final : public DescriptorHeapD3D12
+{
+public:
+	RenderPassDescriptorHeapD3D12(ComPtr<ID3D12Device14> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t reservedCount, uint32_t userCount);
+
+	void Reset();
+	DescriptorD3D12 AllocateUserDescriptorBlock(uint32_t count);
+	DescriptorD3D12 GetReservedDescriptor(uint32_t index);
+
+private:
+	uint32_t   m_reservedHandleCount{ 0 };
+	uint32_t   m_currentDescriptorIndex{ 0 };
+	std::mutex m_usageMutex;
+};
 
 #endif // RENDER_D3D12

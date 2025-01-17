@@ -34,7 +34,7 @@
     <ClInclude Include="004_Render_TriangleCB.h">
       <Filter>Examples\Render</Filter>
     </ClInclude>
-    <ClInclude Include="005_Render_TriangleD12MA.h">
+    <ClInclude Include="005_Render_Cube.h">
       <Filter>Examples\Render</Filter>
     </ClInclude>
   </ItemGroup>

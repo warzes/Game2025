@@ -71,6 +71,7 @@ public:
 	DXGI_OUTPUT_DESC1 GetContainingMonitorDesc() const;
 	auto IsVSyncOn() const { return m_vSync; }
 	auto GetFormat() const { return m_backBufferFormat; }
+	auto GetDepthStencilFormat() const { return m_depthBufferFormat; }
 
 	auto GetScreenViewport() const noexcept { return m_screenViewport; }
 	auto GetScissorRect() const noexcept { return m_scissorRect; }

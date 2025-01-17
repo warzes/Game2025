@@ -5,7 +5,7 @@
 #	include "002_Render_TextureTriangle.h"
 #	include "003_Render_TriangleBundles.h"
 #	include "004_Render_TriangleCB.h"
-#	include "005_Render_TriangleD12MA.h"
+#	include "005_Render_Cube.h"
 #endif
 //=============================================================================
 #if defined(_MSC_VER)
