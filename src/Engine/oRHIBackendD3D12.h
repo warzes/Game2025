@@ -37,7 +37,7 @@ public:
 
 	TextureResource& GetCurrentBackBuffer();
 
-	DescriptorD3D12& GetImguiDescriptor(uint32_t index) { return ImguiDescriptors[index]; }
+	DescriptorHandleD3D12& GetImguiDescriptor(uint32_t index) { return ImguiDescriptors[index]; }
 	UploadCommandContextD3D12& GetUploadContextForCurrentFrame() { return *uploadContexts[currentBackBufferIndex]; }
 
 	ComPtr<IDXGIAdapter4>        adapter{ nullptr };
@@ -53,7 +53,7 @@ public:
 	StagingDescriptorHeapD3D12*       CBVSRVUAVStagingDescriptorHeap{ nullptr };
 	RenderPassDescriptorHeapD3D12*    samplerRenderPassDescriptorHeap{ nullptr };
 	RenderPassDescriptorHeapD3D12*    CBVSRVUAVRenderPassDescriptorHeaps[NUM_FRAMES_IN_FLIGHT]{};
-	DescriptorD3D12                   ImguiDescriptors[NUM_FRAMES_IN_FLIGHT]{};
+	DescriptorHandleD3D12                   ImguiDescriptors[NUM_FRAMES_IN_FLIGHT]{};
 
 	ComPtr<IDXGISwapChain4>      swapChain;
 	TextureResource*             backBuffers[MAX_BACK_BUFFER_COUNT]{};

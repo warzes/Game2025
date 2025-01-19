@@ -19,17 +19,14 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 {
 	if (!context.Create(createInfo.context)) return false;
 	if (!createCommandQueue()) return false;
-	if (!createDescriptorHeap()) return false;
+	if (!descriptorHeapManager.Create(context.GetD3DDevice())) return false;
 
-	SwapChainD3D12CreateInfo swapChainCreateInfo = { .windowData = wndData };
-	swapChainCreateInfo.factory                  = context.GetD3DFactory();
-	swapChainCreateInfo.device                   = context.GetD3DDevice();
-	swapChainCreateInfo.allocator                = context.GetD3DAllocator();
-	swapChainCreateInfo.presentQueue             = &graphicsQueue;
-	swapChainCreateInfo.RTVStagingDescriptorHeap = RTVStagingDescriptorHeap;
-	swapChainCreateInfo.DSVStagingDescriptorHeap = DSVStagingDescriptorHeap;
-	swapChainCreateInfo.allowTearing             = context.IsSupportAllowTearing();
-	swapChainCreateInfo.vSync                    = createInfo.vsync;
+	SwapChainD3D12CreateInfo swapChainCreateInfo = { 
+		.windowData = wndData, 
+		.context = context,
+		.descriptorHeapManager = descriptorHeapManager };
+	swapChainCreateInfo.presentQueue = &graphicsQueue;
+	swapChainCreateInfo.vSync        = createInfo.vsync;
 	if (!swapChain.Create(swapChainCreateInfo)) return false;
 
 	// Create a command allocator for each back buffer that will be rendered to.
@@ -72,15 +69,7 @@ void RHIBackend::DestroyAPI()
 
 	swapChain.Destroy();
 
-	delete RTVStagingDescriptorHeap; RTVStagingDescriptorHeap = nullptr;
-	delete DSVStagingDescriptorHeap; DSVStagingDescriptorHeap = nullptr;
-	delete CBVSRVUAVStagingDescriptorHeap; CBVSRVUAVStagingDescriptorHeap = nullptr;
-	delete samplerRenderPassDescriptorHeap; samplerRenderPassDescriptorHeap = nullptr;
-	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
-	{
-		delete CBVSRVUAVRenderPassDescriptorHeaps[i];
-		CBVSRVUAVRenderPassDescriptorHeaps[i] = nullptr;
-	}
+	descriptorHeapManager.Destroy();
 
 	context.Destroy();
 }
@@ -188,46 +177,6 @@ bool RHIBackend::createCommandQueue()
 	if (!computeQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_COMPUTE, "Main Compute Command Queue")) return false;
 
 	if (!copyQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_COPY, "Main Copy Command Queue")) return false;
-
-	return true;
-}
-//=============================================================================
-bool RHIBackend::createDescriptorHeap()
-{
-	RTVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, NUM_RTV_STAGING_DESCRIPTORS);
-	if (IsRequestExit())
-	{
-		Fatal("Create RTVStagingDescriptorHeap failed.");
-		return false;
-	}
-	DSVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, NUM_DSV_STAGING_DESCRIPTORS);
-	if (IsRequestExit())
-	{
-		Fatal("Create DSVStagingDescriptorHeap failed.");
-		return false;
-	}
-	CBVSRVUAVStagingDescriptorHeap = new StagingDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_SRV_STAGING_DESCRIPTORS);
-	if (IsRequestExit())
-	{
-		Fatal("Create CBVSRVUAVStagingDescriptorHeap failed.");
-		return false;
-	}
-
-	samplerRenderPassDescriptorHeap = new RenderPassDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 0, NUM_SAMPLER_DESCRIPTORS);
-	if (IsRequestExit())
-	{
-		Fatal("Create samplerRenderPassDescriptorHeap failed.");
-		return false;
-	}
-	for (uint32_t frameIndex = 0; frameIndex < MAX_BACK_BUFFER_COUNT; frameIndex++)
-	{
-		CBVSRVUAVRenderPassDescriptorHeaps[frameIndex] = new RenderPassDescriptorHeapD3D12(GetD3DDevice(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, NUM_RESERVED_SRV_DESCRIPTORS, NUM_SRV_RENDER_PASS_USER_DESCRIPTORS);
-		if (IsRequestExit())
-		{
-			Fatal("Create SRVRenderPassDescriptorHeaps failed.");
-			return false;
-		}
-	}
 
 	return true;
 }

@@ -41,3 +41,21 @@ private:
 		ID3D12CommandQueue* mpCmdQueue;
 	};
 };
+
+// TODO: совместить с ScopedGPUMarker
+class ScopedPixEvent final
+{
+public:
+	ScopedPixEvent(ComPtr<ID3D12GraphicsCommandList> commandList, PCWSTR pFormat) noexcept
+		: m_commandList(commandList)
+	{
+		PIXBeginEvent(m_commandList.Get(), 0, pFormat);
+	}
+	~ScopedPixEvent()
+	{
+		PIXEndEvent(m_commandList.Get());
+	}
+
+private:
+	ComPtr<ID3D12GraphicsCommandList> m_commandList;
+};

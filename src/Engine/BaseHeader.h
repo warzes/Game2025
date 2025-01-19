@@ -102,6 +102,8 @@
 #	include <DirectXShaderCompiler/dxcapi.h>
 #	include <DirectXTex/DirectXTex.h>
 
+#	include <DirectXMath.h>
+
 #	include <pix3.h>
 
 using Microsoft::WRL::ComPtr;

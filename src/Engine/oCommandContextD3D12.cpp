@@ -287,7 +287,7 @@ void GraphicsCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const P
 		}
 	}
 
-	DescriptorD3D12 blockStart = m_currentSRVHeap->AllocateUserDescriptorBlock(numTableHandles);
+	DescriptorHandleD3D12 blockStart = m_currentSRVHeap->AllocateUserDescriptorBlock(numTableHandles);
 	CopyDescriptors(1, &blockStart.CPUHandle, &numTableHandles, numTableHandles, handles, singleDescriptorRangeCopyArray, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	auto& tableMapping = m_currentPipeline->pipelineResourceMapping.tableMapping[spaceId];
@@ -447,7 +447,7 @@ void ComputeCommandContextD3D12::SetPipelineResources(uint32_t spaceId, const Pi
 		}
 	}
 
-	DescriptorD3D12 blockStart = m_currentSRVHeap->AllocateUserDescriptorBlock(numTableHandles);
+	DescriptorHandleD3D12 blockStart = m_currentSRVHeap->AllocateUserDescriptorBlock(numTableHandles);
 	CopyDescriptors(1, &blockStart.CPUHandle, &numTableHandles, numTableHandles, handles, singleDescriptorRangeCopyArray, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	auto& tableMapping = m_currentPipeline->pipelineResourceMapping.tableMapping[spaceId];

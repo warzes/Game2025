@@ -99,6 +99,7 @@
     <ClInclude Include="CommandQueueD3D12.h" />
     <ClInclude Include="ContextD3D12.h" />
     <ClInclude Include="DescriptorHeapD3D12.h" />
+    <ClInclude Include="DescriptorHeapManagerD3D12.h" />
     <ClInclude Include="FenceD3D12.h" />
     <ClInclude Include="GPUMarker.h" />
     <ClInclude Include="HDR.h" />
@@ -134,6 +135,7 @@
     <ClCompile Include="CommandQueueD3D12.cpp" />
     <ClCompile Include="ContextD3D12.cpp" />
     <ClCompile Include="DescriptorHeapD3D12.cpp" />
+    <ClCompile Include="DescriptorHeapManagerD3D12.cpp" />
     <ClCompile Include="FenceD3D12.cpp" />
     <ClCompile Include="GPUMarker.cpp" />
     <ClCompile Include="HelperD3D12.cpp" />

@@ -167,9 +167,9 @@ struct BufferResource final : public Resource
 
 	uint8_t*   mappedResource{ nullptr };
 	uint32_t   stride{ 0 };
-	DescriptorD3D12 CBVDescriptor{};
-	DescriptorD3D12 SRVDescriptor{};
-	DescriptorD3D12 UAVDescriptor{};
+	DescriptorHandleD3D12 CBVDescriptor{};
+	DescriptorHandleD3D12 SRVDescriptor{};
+	DescriptorHandleD3D12 UAVDescriptor{};
 };
 
 struct TextureResource final : public Resource
@@ -179,10 +179,10 @@ struct TextureResource final : public Resource
 		type = oGPUResourceType::texture;
 	}
 
-	DescriptorD3D12 RTVDescriptor{};
-	DescriptorD3D12 DSVDescriptor{};
-	DescriptorD3D12 SRVDescriptor{};
-	DescriptorD3D12 UAVDescriptor{};
+	DescriptorHandleD3D12 RTVDescriptor{};
+	DescriptorHandleD3D12 DSVDescriptor{};
+	DescriptorHandleD3D12 SRVDescriptor{};
+	DescriptorHandleD3D12 UAVDescriptor{};
 };
 
 struct PipelineResourceBinding final

@@ -4,7 +4,7 @@
 
 #include "RHICoreD3D12.h"
 #include "ContextD3D12.h"
-#include "DescriptorHeapD3D12.h"
+#include "DescriptorHeapManagerD3D12.h"
 #include "CommandQueueD3D12.h"
 #include "FenceD3D12.h"
 #include "SwapChainD3D12.h"
@@ -67,15 +67,10 @@ public:
 	ComPtr<ID3D12GraphicsCommandList10> commandList;
 	ComPtr<ID3D12CommandAllocator>      commandAllocators[MAX_BACK_BUFFER_COUNT];
 
-	StagingDescriptorHeapD3D12*         RTVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeapD3D12*         DSVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeapD3D12*         CBVSRVUAVStagingDescriptorHeap{ nullptr };
-	RenderPassDescriptorHeapD3D12*      samplerRenderPassDescriptorHeap{ nullptr };
-	RenderPassDescriptorHeapD3D12*      CBVSRVUAVRenderPassDescriptorHeaps[MAX_BACK_BUFFER_COUNT]{};
+	DescriptorHeapManagerD3D12          descriptorHeapManager;
 
 private:
 	bool createCommandQueue();
-	bool createDescriptorHeap();
 };
 
 extern RHIBackend gRHI;

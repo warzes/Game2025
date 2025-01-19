@@ -3,12 +3,13 @@
 #if RENDER_D3D12
 
 #include "RHICoreD3D12.h"
-#include "DescriptorHeapD3D12.h"
 #include "HDR.h"
 #include "CommandQueueD3D12.h"
 #include "FenceD3D12.h"
 
 struct WindowData;
+class ContextD3D12;
+class DescriptorHeapManagerD3D12;
 
 enum class SwapChainBitDepth
 {
@@ -20,14 +21,11 @@ enum class SwapChainBitDepth
 struct SwapChainD3D12CreateInfo final
 {
 	const WindowData&           windowData;
-	ComPtr<IDXGIFactory7>       factory;
-	ComPtr<ID3D12Device14>      device;
-	ComPtr<D3D12MA::Allocator>  allocator;
+	ContextD3D12&               context;
+	DescriptorHeapManagerD3D12& descriptorHeapManager;
+
 	CommandQueueD3D12*          presentQueue{ nullptr };
-	StagingDescriptorHeapD3D12* RTVStagingDescriptorHeap{ nullptr };
-	StagingDescriptorHeapD3D12* DSVStagingDescriptorHeap{ nullptr };
 	int                         numBackBuffers{ MAX_BACK_BUFFER_COUNT };
-	bool                        allowTearing{ true };
 	bool                        vSync{ false };
 	bool                        HDR{ false };
 	SwapChainBitDepth           bitDepth = SwapChainBitDepth::_8;
@@ -112,14 +110,14 @@ private:
 	FenceD3D12                  m_fence;
 	uint64_t                    m_fenceValues[MAX_BACK_BUFFER_COUNT] = {};
 
+	DescriptorHeapManagerD3D12* m_descriptorHeapManager{ nullptr };
+
 	ComPtr<ID3D12Resource>      m_backBuffers[MAX_BACK_BUFFER_COUNT];
-	DescriptorD3D12             m_backBuffersDescriptor[MAX_BACK_BUFFER_COUNT];
-	StagingDescriptorHeapD3D12* m_RTVStagingDescriptorHeap{ nullptr };
+	DescriptorHandleD3D12       m_backBuffersDescriptor[MAX_BACK_BUFFER_COUNT];
 
 	ComPtr<ID3D12Resource>      m_depthStencil;
 	D3D12MA::Allocation*        m_depthStencilAllocation{ nullptr };
-	DescriptorD3D12             m_depthStencilDescriptor{};
-	StagingDescriptorHeapD3D12* m_DSVStagingDescriptorHeap{ nullptr };
+	DescriptorHandleD3D12       m_depthStencilDescriptor{};
 
 	unsigned short              m_numBackBuffers{ 0 };
 	unsigned short              m_currentBackBufferIndex{ 0 };

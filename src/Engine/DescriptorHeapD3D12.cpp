@@ -23,10 +23,10 @@ DescriptorHeapD3D12::DescriptorHeapD3D12(ComPtr<ID3D12Device14> device, D3D12_DE
 	}
 	SetDebugObjectName(m_descriptorHeap.Get(), "DescriptorHeap");
 
-	m_CPU = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	m_CPUStart = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
 	if (m_isShaderVisible)
-		m_GPU = m_descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+		m_GPUStart = m_descriptorHeap->GetGPUDescriptorHandleForHeapStart();
 
 	m_descriptorSize = device->GetDescriptorHandleIncrementSize(m_heapType);
 }
@@ -45,7 +45,7 @@ StagingDescriptorHeapD3D12::~StagingDescriptorHeapD3D12()
 	}
 }
 //=============================================================================
-DescriptorD3D12 StagingDescriptorHeapD3D12::GetNewDescriptor()
+DescriptorHandleD3D12 StagingDescriptorHeapD3D12::GetNewDescriptor()
 {
 	std::lock_guard<std::mutex> lockGuard(m_usageMutex);
 
@@ -67,10 +67,10 @@ DescriptorD3D12 StagingDescriptorHeapD3D12::GetNewDescriptor()
 		return {};
 	}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPU;
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPUStart;
 	cpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
 
-	DescriptorD3D12 newDescriptor;
+	DescriptorHandleD3D12 newDescriptor;
 	newDescriptor.CPUHandle = cpuHandle;
 	newDescriptor.heapIndex = newHandleID;
 
@@ -79,7 +79,7 @@ DescriptorD3D12 StagingDescriptorHeapD3D12::GetNewDescriptor()
 	return newDescriptor;
 }
 //=============================================================================
-void StagingDescriptorHeapD3D12::FreeDescriptor(DescriptorD3D12& descriptor)
+void StagingDescriptorHeapD3D12::FreeDescriptor(DescriptorHandleD3D12& descriptor)
 {
 	std::lock_guard<std::mutex> lockGuard(m_usageMutex);
 
@@ -95,6 +95,52 @@ void StagingDescriptorHeapD3D12::FreeDescriptor(DescriptorD3D12& descriptor)
 	m_activeHandleCount--;
 }
 //=============================================================================
+GPUDescriptorHeapD3D12::GPUDescriptorHeapD3D12(ComPtr<ID3D12Device14> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors)
+	: DescriptorHeapD3D12(device, heapType, numDescriptors, true)
+{
+}
+//=============================================================================
+GPUDescriptorHeapD3D12::~GPUDescriptorHeapD3D12()
+{
+}
+//=============================================================================
+void GPUDescriptorHeapD3D12::Reset()
+{
+	m_currentDescriptorIndex = 0;
+}
+//=============================================================================
+DescriptorHandleD3D12 GPUDescriptorHeapD3D12::GetHandleBlock(uint32_t count)
+{
+	uint32_t newHandleID = 0;
+	{
+		std::lock_guard<std::mutex> lockGuard(m_usageMutex);
+
+		uint32_t blockEnd = m_currentDescriptorIndex + count;
+
+		if (blockEnd <= m_maxDescriptors)
+		{
+			newHandleID = m_currentDescriptorIndex;
+			m_currentDescriptorIndex = blockEnd;
+		}
+		else
+		{
+			Fatal("Ran out of render pass descriptor heap handles, need to increase heap size.");
+		}
+	}
+
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPUStart;
+	cpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
+
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_GPUStart;
+	gpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
+
+	DescriptorHandleD3D12 newDescriptor;
+	newDescriptor.CPUHandle = cpuHandle;
+	newDescriptor.GPUHandle = gpuHandle;
+	newDescriptor.heapIndex = newHandleID;
+	return newDescriptor;
+}
+//=============================================================================
 RenderPassDescriptorHeapD3D12::RenderPassDescriptorHeapD3D12(ComPtr<ID3D12Device14> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t reservedCount, uint32_t userCount)
 	: DescriptorHeapD3D12(device, heapType, reservedCount + userCount, true)
 	, m_reservedHandleCount(reservedCount)
@@ -102,16 +148,16 @@ RenderPassDescriptorHeapD3D12::RenderPassDescriptorHeapD3D12(ComPtr<ID3D12Device
 {
 }
 //=============================================================================
-DescriptorD3D12 RenderPassDescriptorHeapD3D12::GetReservedDescriptor(uint32_t index)
+DescriptorHandleD3D12 RenderPassDescriptorHeapD3D12::GetReservedDescriptor(uint32_t index)
 {
 	assert(index < m_reservedHandleCount);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPU;
-	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_GPU;
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPUStart;
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_GPUStart;
 	cpuHandle.ptr += static_cast<uint64_t>(index) * m_descriptorSize;
 	gpuHandle.ptr += static_cast<uint64_t>(index) * m_descriptorSize;
 
-	DescriptorD3D12 descriptor;
+	DescriptorHandleD3D12 descriptor;
 	descriptor.heapIndex = index;
 	descriptor.CPUHandle = cpuHandle;
 	descriptor.GPUHandle = gpuHandle;
@@ -119,7 +165,7 @@ DescriptorD3D12 RenderPassDescriptorHeapD3D12::GetReservedDescriptor(uint32_t in
 	return descriptor;
 }
 //=============================================================================
-DescriptorD3D12 RenderPassDescriptorHeapD3D12::AllocateUserDescriptorBlock(uint32_t count)
+DescriptorHandleD3D12 RenderPassDescriptorHeapD3D12::AllocateUserDescriptorBlock(uint32_t count)
 {
 	uint32_t newHandleID = 0;
 
@@ -139,14 +185,14 @@ DescriptorD3D12 RenderPassDescriptorHeapD3D12::AllocateUserDescriptorBlock(uint3
 		}
 	}
 
-	DescriptorD3D12 newDescriptor;
+	DescriptorHandleD3D12 newDescriptor;
 	newDescriptor.heapIndex = newHandleID;
 
-	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPU;
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPUStart;
 	cpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
 	newDescriptor.CPUHandle = cpuHandle;
 
-	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_GPU;
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_GPUStart;
 	gpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
 	newDescriptor.GPUHandle = gpuHandle;
 

@@ -14,11 +14,11 @@ void D3D12MessageFuncion(D3D12_MESSAGE_CATEGORY Category, D3D12_MESSAGE_SEVERITY
 }
 #endif // RHI_VALIDATION_ENABLED
 //=============================================================================
-void CopySRVHandleToReservedTable(DescriptorD3D12 srvHandle, uint32_t index)
+void CopySRVHandleToReservedTable(DescriptorHandleD3D12 srvHandle, uint32_t index)
 {
 	for (uint32_t frameIndex = 0; frameIndex < NUM_FRAMES_IN_FLIGHT; frameIndex++)
 	{
-		DescriptorD3D12 targetDescriptor = ogRHI.CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(index);
+		DescriptorHandleD3D12 targetDescriptor = ogRHI.CBVSRVUAVRenderPassDescriptorHeaps[frameIndex]->GetReservedDescriptor(index);
 
 		CopyDescriptorsSimple(1, targetDescriptor.CPUHandle, srvHandle.CPUHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	}
@@ -112,7 +112,7 @@ bool oRHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateI
 		samplerDescs[5].MinLOD = 0;
 		samplerDescs[5].MaxLOD = D3D12_FLOAT32_MAX;
 
-		DescriptorD3D12 samplerDescriptorBlock = samplerRenderPassDescriptorHeap->AllocateUserDescriptorBlock(NUM_SAMPLER_DESCRIPTORS);
+		DescriptorHandleD3D12 samplerDescriptorBlock = samplerRenderPassDescriptorHeap->AllocateUserDescriptorBlock(NUM_SAMPLER_DESCRIPTORS);
 		D3D12_CPU_DESCRIPTOR_HANDLE currentSamplerDescriptor = samplerDescriptorBlock.CPUHandle;
 
 		for (uint32_t samplerIndex = 0; samplerIndex < NUM_SAMPLER_DESCRIPTORS; samplerIndex++)
@@ -546,7 +546,7 @@ bool oRHIBackend::createMainRenderTarget()
 		rtvDesc.Texture2D.MipSlice            = 0;
 		rtvDesc.Texture2D.PlaneSlice          = 0;
 
-		DescriptorD3D12 backBufferRTVHandle = RTVStagingDescriptorHeap->GetNewDescriptor();
+		DescriptorHandleD3D12 backBufferRTVHandle = RTVStagingDescriptorHeap->GetNewDescriptor();
 
 		device->CreateRenderTargetView(backBufferResource.Get(), &rtvDesc, backBufferRTVHandle.CPUHandle);
 

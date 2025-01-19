@@ -5,7 +5,9 @@
 #include "Log.h"
 #include "Monitor.h"
 #include "GPUMarker.h"
+#include "ContextD3D12.h"
 #include "HelperD3D12.h"
+#include "DescriptorHeapManagerD3D12.h"
 //=============================================================================
 SwapChainD3D12::~SwapChainD3D12()
 {
@@ -22,31 +24,28 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 	m_frameBufferWidth = 0;
 	m_frameBufferHeight = 0;
 
-	assert(createInfo.factory);
-	assert(createInfo.device);
-	assert(createInfo.allocator);
+	assert(createInfo.context.GetD3DFactory());
+	assert(createInfo.context.GetD3DDevice());
+	assert(createInfo.context.GetD3DAllocator());
 	assert(createInfo.presentQueue);
-	assert(createInfo.RTVStagingDescriptorHeap);
-	assert(createInfo.DSVStagingDescriptorHeap);
 	assert(createInfo.windowData.hwnd);
 	assert(createInfo.numBackBuffers > 0 && createInfo.numBackBuffers <= MAX_BACK_BUFFER_COUNT);
 
 	setSize(createInfo.windowData.width, createInfo.windowData.height);
 
-	m_device                   = createInfo.device;
-	m_allocator                = createInfo.allocator;
-	m_presentQueue             = createInfo.presentQueue;
-	m_RTVStagingDescriptorHeap = createInfo.RTVStagingDescriptorHeap;
-	m_DSVStagingDescriptorHeap = createInfo.DSVStagingDescriptorHeap;
-	m_numBackBuffers           = createInfo.numBackBuffers;
-	m_vSync                    = createInfo.vSync;
-	m_allowTearing             = createInfo.allowTearing && !m_vSync;
+	m_device                = createInfo.context.GetD3DDevice();
+	m_allocator             = createInfo.context.GetD3DAllocator();
+	m_presentQueue          = createInfo.presentQueue;
+	m_descriptorHeapManager = &createInfo.descriptorHeapManager;
+	m_numBackBuffers        = createInfo.numBackBuffers;
+	m_vSync                 = createInfo.vSync;
+	m_allowTearing          = createInfo.context.IsSupportAllowTearing() && !m_vSync;
 
 	if (!createSwapChain(createInfo)) return false;
 
 	for (size_t i = 0; i < m_numBackBuffers; i++)
-		m_backBuffersDescriptor[i] = m_RTVStagingDescriptorHeap->GetNewDescriptor();
-	m_depthStencilDescriptor = m_DSVStagingDescriptorHeap->GetNewDescriptor();
+		m_backBuffersDescriptor[i] = m_descriptorHeapManager->CreateCPUHandle(D3D12_DESCRIPTOR_HEAP_TYPE_RTV, i);
+	m_depthStencilDescriptor = m_descriptorHeapManager->CreateCPUHandle(D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 0);
 
 	if (!m_fence.Create(m_device.Get(), "SwapChain Fence")) return false;
 	m_fenceValues[m_currentBackBufferIndex]++;
@@ -68,10 +67,10 @@ void SwapChainD3D12::Destroy()
 	destroyDepthStencilViews();
 	for (size_t i = 0; i < MAX_BACK_BUFFER_COUNT; i++)
 	{
-		if (m_RTVStagingDescriptorHeap) m_RTVStagingDescriptorHeap->FreeDescriptor(m_backBuffersDescriptor[i]);
+		//if (m_descriptorHeapManager) m_descriptorHeapManager->FreeDescriptor(m_backBuffersDescriptor[i]);
 		m_backBuffers[i].Reset();
 	}
-	if (m_DSVStagingDescriptorHeap) m_DSVStagingDescriptorHeap->FreeDescriptor(m_depthStencilDescriptor);
+	//if (m_descriptorHeapManager) m_descriptorHeapManager->FreeDescriptor(m_depthStencilDescriptor);
 
 	m_fence.Destroy();
 	m_swapChain.Reset();
@@ -291,7 +290,7 @@ bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 	DXGI_FORMAT swapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 	// Check HDR support : https://docs.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range
-	const bool isHDRCapableDisplayAvailable = checkHDRSupport(createInfo.windowData.hwnd, createInfo.factory);
+	const bool isHDRCapableDisplayAvailable = checkHDRSupport(createInfo.windowData.hwnd, createInfo.context.GetD3DFactory());
 	if (createInfo.HDR)
 	{
 		if (isHDRCapableDisplayAvailable)
@@ -342,7 +341,7 @@ bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 	fsSwapChainDesc.Windowed = TRUE;
 
 	ComPtr<IDXGISwapChain1> swapChain1;
-	HRESULT result = createInfo.factory->CreateSwapChainForHwnd(*m_presentQueue, createInfo.windowData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
+	HRESULT result = createInfo.context.GetD3DFactory()->CreateSwapChainForHwnd(*m_presentQueue, createInfo.windowData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
@@ -350,7 +349,7 @@ bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 	}
 	m_backBufferFormat = swapChainFormat;
 
-	result = createInfo.factory->MakeWindowAssociation(createInfo.windowData.hwnd, DXGI_MWA_NO_ALT_ENTER);
+	result = createInfo.context.GetD3DFactory()->MakeWindowAssociation(createInfo.windowData.hwnd, DXGI_MWA_NO_ALT_ENTER);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::MakeWindowAssociation() failed: " + DXErrorToStr(result));
