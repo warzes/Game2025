@@ -5,6 +5,7 @@
 #include "Log.h"
 #include "Monitor.h"
 #include "GPUMarker.h"
+#include "HelperD3D12.h"
 //=============================================================================
 SwapChainD3D12::~SwapChainD3D12()
 {
@@ -132,6 +133,7 @@ bool SwapChainD3D12::Present()
 		Fatal("IDXGISwapChain4::Present() failed: " + DXErrorToStr(result));
 		return false;
 	}
+	m_numTotalFrames++;
 
 	return true;
 }
@@ -142,9 +144,8 @@ void SwapChainD3D12::MoveToNextFrame()
 	const UINT64 currentFenceValue = m_fenceValues[m_currentBackBufferIndex];
 	m_presentQueue->Signal(m_fence, currentFenceValue);
 
-	// Update the frame index.
-	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex();
-	m_numTotalFrames++;
+	m_currentBackBufferIndex = m_swapChain->GetCurrentBackBufferIndex(); // TODO: а точно нужно тут? или в Present? Разобраться
+
 	// If the next frame is not ready to be rendered yet, wait until it is ready.
 	m_fence.WaitOnCPU(m_fenceValues[m_currentBackBufferIndex]);
 	// Set the fence value for the next frame.
@@ -158,8 +159,8 @@ void SwapChainD3D12::WaitForGPU()
 		// Schedule a Signal command in the GPU queue.
 		if (m_presentQueue->Signal(m_fence, m_fenceValues[m_currentBackBufferIndex]))
 		{
-			if (m_fence.WaitOnCPU(m_fenceValues[m_currentBackBufferIndex]))
-				m_fenceValues[m_currentBackBufferIndex]++;
+			m_fence.WaitOnCPU(m_fenceValues[m_currentBackBufferIndex]);
+			m_fenceValues[m_currentBackBufferIndex]++;
 		}
 	}
 }
@@ -395,7 +396,7 @@ bool SwapChainD3D12::createRenderTargetViews()
 		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
 		m_device->CreateRenderTargetView(m_backBuffers[bufferIndex].Get(), &rtvDesc, m_backBuffersDescriptor[bufferIndex].CPUHandle);
-		SetName(m_backBuffers[bufferIndex].Get(), "SwapChain::RenderTarget[%d]", bufferIndex);
+		SetDebugObjectName(m_backBuffers[bufferIndex].Get(), "SwapChain::RenderTarget[%d]", bufferIndex);
 	}
 	return true;
 }

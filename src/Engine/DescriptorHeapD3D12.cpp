@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #if RENDER_D3D12
 #include "DescriptorHeapD3D12.h"
+#include "HelperD3D12.h"
 #include "Log.h"
 //=============================================================================
 DescriptorHeapD3D12::DescriptorHeapD3D12(ComPtr<ID3D12Device14> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible)
@@ -20,11 +21,12 @@ DescriptorHeapD3D12::DescriptorHeapD3D12(ComPtr<ID3D12Device14> device, D3D12_DE
 		Fatal("ID3D12Device::CreateDescriptorHeap() failed: " + DXErrorToStr(result));
 		return;
 	}
+	SetDebugObjectName(m_descriptorHeap.Get(), "DescriptorHeap");
 
-	m_heapStart.CPUHandle = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	m_CPU = m_descriptorHeap->GetCPUDescriptorHandleForHeapStart();
 
 	if (m_isShaderVisible)
-		m_heapStart.GPUHandle = m_descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+		m_GPU = m_descriptorHeap->GetGPUDescriptorHandleForHeapStart();
 
 	m_descriptorSize = device->GetDescriptorHandleIncrementSize(m_heapType);
 }
@@ -65,7 +67,7 @@ DescriptorD3D12 StagingDescriptorHeapD3D12::GetNewDescriptor()
 		return {};
 	}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_heapStart.CPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPU;
 	cpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
 
 	DescriptorD3D12 newDescriptor;
@@ -104,8 +106,8 @@ DescriptorD3D12 RenderPassDescriptorHeapD3D12::GetReservedDescriptor(uint32_t in
 {
 	assert(index < m_reservedHandleCount);
 
-	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_heapStart.CPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_heapStart.GPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPU;
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_GPU;
 	cpuHandle.ptr += static_cast<uint64_t>(index) * m_descriptorSize;
 	gpuHandle.ptr += static_cast<uint64_t>(index) * m_descriptorSize;
 
@@ -140,11 +142,11 @@ DescriptorD3D12 RenderPassDescriptorHeapD3D12::AllocateUserDescriptorBlock(uint3
 	DescriptorD3D12 newDescriptor;
 	newDescriptor.heapIndex = newHandleID;
 
-	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_heapStart.CPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = m_CPU;
 	cpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
 	newDescriptor.CPUHandle = cpuHandle;
 
-	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_heapStart.GPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_GPU;
 	gpuHandle.ptr += static_cast<uint64_t>(newHandleID) * m_descriptorSize;
 	newDescriptor.GPUHandle = gpuHandle;
 

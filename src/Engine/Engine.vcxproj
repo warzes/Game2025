@@ -102,6 +102,7 @@
     <ClInclude Include="FenceD3D12.h" />
     <ClInclude Include="GPUMarker.h" />
     <ClInclude Include="HDR.h" />
+    <ClInclude Include="HelperD3D12.h" />
     <ClInclude Include="HighResolutionTimer.h" />
     <ClInclude Include="Monitor.h" />
     <ClInclude Include="oCommandContextD3D12.h" />
@@ -135,6 +136,7 @@
     <ClCompile Include="DescriptorHeapD3D12.cpp" />
     <ClCompile Include="FenceD3D12.cpp" />
     <ClCompile Include="GPUMarker.cpp" />
+    <ClCompile Include="HelperD3D12.cpp" />
     <ClCompile Include="HighResolutionTimer.cpp" />
     <ClCompile Include="Monitor.cpp" />
     <ClCompile Include="oCommandContextD3D12.cpp" />

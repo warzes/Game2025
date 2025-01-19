@@ -17,18 +17,6 @@ constexpr uint32_t INVALID_RESOURCE_TABLE_INDEX = UINT_MAX;
 const std::string DXErrorToStr(HRESULT hr);
 const std::string ConvertToStr(D3D_FEATURE_LEVEL level);
 
-template<class... Args>
-[[nodiscard]] inline void SetName(ID3D12Object* pObj, const char* format, Args&&... args)
-{
-	char bufName[240];
-	sprintf_s(bufName, format, args...);
-	std::string Name = bufName;
-	std::wstring wName(Name.begin(), Name.end());
-	HRESULT result = pObj->SetName(wName.c_str());
-	if (FAILED(result))
-		Fatal("SetName() failed: " + DXErrorToStr(result));
-}
-
 struct DescriptorD3D12 final
 {
 	bool IsValid() const { return CPUHandle.ptr != 0; }

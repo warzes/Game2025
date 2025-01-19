@@ -10,19 +10,19 @@ public:
 	DescriptorHeapD3D12(ComPtr<ID3D12Device14> device, D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible);
 
 	auto GetD3DHeap() const { return m_descriptorHeap; }
-	auto GetHeapType() const { return m_heapType; }
-	auto GetHeapCPUStart() const { return m_heapStart.CPUHandle; }
-	auto GetHeapGPUStart() const { return m_heapStart.GPUHandle; }
+	auto GetHeapCPUStart() const { return m_CPU; }
+	auto GetHeapGPUStart() const { return m_GPU; }
 	auto GetMaxDescriptors() const { return m_maxDescriptors; }
 	auto GetDescriptorSize() const { return m_descriptorSize; }
 
 protected:
 	D3D12_DESCRIPTOR_HEAP_TYPE   m_heapType{ D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES };
 	uint32_t                     m_maxDescriptors{ 0 };
+	ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
+	D3D12_CPU_DESCRIPTOR_HANDLE  m_CPU;
+	D3D12_GPU_DESCRIPTOR_HANDLE  m_GPU;
 	uint32_t                     m_descriptorSize{ 0 };
 	bool                         m_isShaderVisible{ false };
-	ComPtr<ID3D12DescriptorHeap> m_descriptorHeap;
-	DescriptorD3D12              m_heapStart{};
 };
 
 class StagingDescriptorHeapD3D12 final : public DescriptorHeapD3D12

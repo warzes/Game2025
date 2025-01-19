@@ -74,6 +74,9 @@
     <ClCompile Include="GPUMarker.cpp">
       <Filter>RHI\Utility</Filter>
     </ClCompile>
+    <ClCompile Include="HelperD3D12.cpp">
+      <Filter>RHI\Direct3D12\Base</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -175,6 +178,9 @@
     </ClInclude>
     <ClInclude Include="GPUMarker.h">
       <Filter>RHI\Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="HelperD3D12.h">
+      <Filter>RHI\Direct3D12\Base</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

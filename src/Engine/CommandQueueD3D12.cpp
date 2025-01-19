@@ -2,8 +2,8 @@
 #if RENDER_D3D12
 #include "CommandQueueD3D12.h"
 #include "Log.h"
-#include "RHICoreD3D12.h"
 #include "FenceD3D12.h"
+#include "HelperD3D12.h"
 //=============================================================================
 bool CommandQueueD3D12::Create(ID3D12Device14* device, D3D12_COMMAND_LIST_TYPE type, const char* name)
 {
@@ -20,7 +20,7 @@ bool CommandQueueD3D12::Create(ID3D12Device14* device, D3D12_COMMAND_LIST_TYPE t
 	}
 
 	if (name)
-		SetName(m_queue.Get(), name);
+		SetDebugObjectName(m_queue.Get(), name);
 
 	return true;
 }

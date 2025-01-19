@@ -1,4 +1,6 @@
 ﻿https://github.com/GPUOpen-LibrariesAndSDKs/DirectStorageSample - посмотреть, что-то про фоновую загрузку файлов
+https://github.com/nvpro-samples/vk_gltf_renderer - 
+https://github.com/nvpro-samples/nvpro_core
 
 std::expected - вариант optional, позволяющий вернуть код ошибки или объект
 	надо юзать
