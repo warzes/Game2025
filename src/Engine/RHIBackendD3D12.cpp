@@ -161,9 +161,9 @@ void RHIBackend::ClearFrameBuffer(const glm::vec4& color)
 	const auto viewport = swapChain.GetScreenViewport();
 	const auto scissorRect = swapChain.GetScissorRect();
 
-	commandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
+	commandList->OMSetRenderTargets(1, &rtvDescriptor, true, &dsvDescriptor);
 	commandList->ClearRenderTargetView(rtvDescriptor, &color[0], 0, nullptr);
-	commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	commandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 	commandList->RSSetViewports(1, &viewport);
 	commandList->RSSetScissorRects(1, &scissorRect);
 

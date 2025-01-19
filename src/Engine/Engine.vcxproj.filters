@@ -80,6 +80,12 @@
     <ClCompile Include="DescriptorHeapManagerD3D12.cpp">
       <Filter>RHI\Direct3D12\Base</Filter>
     </ClCompile>
+    <ClCompile Include="GPUBufferD3D12.cpp">
+      <Filter>RHI\Direct3D12\Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryD3D12.cpp">
+      <Filter>RHI\Direct3D12\Resource</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -188,6 +194,12 @@
     <ClInclude Include="DescriptorHeapManagerD3D12.h">
       <Filter>RHI\Direct3D12\Base</Filter>
     </ClInclude>
+    <ClInclude Include="GPUBufferD3D12.h">
+      <Filter>RHI\Direct3D12\Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryD3D12.h">
+      <Filter>RHI\Direct3D12\Resource</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Base">
@@ -231,6 +243,9 @@
     </Filter>
     <Filter Include="RHI\Utility">
       <UniqueIdentifier>{c883221c-f06e-48e3-aa0f-0107bacbc9cb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RHI\Direct3D12\Resource">
+      <UniqueIdentifier>{b617315a-4f04-444b-9b70-36dbcf269175}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

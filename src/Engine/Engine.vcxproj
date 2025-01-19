@@ -101,6 +101,8 @@
     <ClInclude Include="DescriptorHeapD3D12.h" />
     <ClInclude Include="DescriptorHeapManagerD3D12.h" />
     <ClInclude Include="FenceD3D12.h" />
+    <ClInclude Include="GeometryD3D12.h" />
+    <ClInclude Include="GPUBufferD3D12.h" />
     <ClInclude Include="GPUMarker.h" />
     <ClInclude Include="HDR.h" />
     <ClInclude Include="HelperD3D12.h" />
@@ -137,6 +139,8 @@
     <ClCompile Include="DescriptorHeapD3D12.cpp" />
     <ClCompile Include="DescriptorHeapManagerD3D12.cpp" />
     <ClCompile Include="FenceD3D12.cpp" />
+    <ClCompile Include="GeometryD3D12.cpp" />
+    <ClCompile Include="GPUBufferD3D12.cpp" />
     <ClCompile Include="GPUMarker.cpp" />
     <ClCompile Include="HelperD3D12.cpp" />
     <ClCompile Include="HighResolutionTimer.cpp" />

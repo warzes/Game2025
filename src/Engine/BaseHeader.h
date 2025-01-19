@@ -103,6 +103,9 @@
 #	include <DirectXTex/DirectXTex.h>
 
 #	include <DirectXMath.h>
+#	include <DirectXPackedVector.h>
+#	include <DirectXColors.h>
+#	include <DirectXCollision.h>
 
 #	include <pix3.h>
 

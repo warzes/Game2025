@@ -82,28 +82,16 @@ void ExampleRender001()
 		}
 
 		// Create the vertex buffer.
-		ComPtr<ID3D12Resource> vertexBuffer;
+		VertexBufferD3D12 vertexBuffer;
 		{
-			// Note: using upload heaps to transfer static data like vert buffers is not recommended. Every time the GPU needs it, the upload heap will be marshalled over. Please read up on Default Heap usage. An upload heap is used here for code simplicity and because there are very few verts to actually transfer.
-			const auto heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-			const auto desc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-			gRHI.GetD3DDevice()->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertexBuffer));
-
-			// Copy the triangle data to the vertex buffer.
-			UINT8* pVertexDataBegin;
-			CD3DX12_RANGE readRange(0, 0); // We do not intend to read from this resource on the CPU.
-			vertexBuffer->Map(0, &readRange, reinterpret_cast<void**>(&pVertexDataBegin));
+			VertexBufferCreateInfo vbci{};
+			vbci.vertexSize = sizeof(Vertex);
+			vbci.vertexCount = 3;
+			vertexBuffer.Create(vbci);
+			UINT8* pVertexDataBegin = vertexBuffer.Map();
 			memcpy(pVertexDataBegin, triangleVertices, sizeof(triangleVertices));
-			vertexBuffer->Unmap(0, nullptr);
+			vertexBuffer.Unmap();
 		}
-
-		// Create the vertex buffer.
-		D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
-		// Initialize the vertex buffer view.
-		vertexBufferView.BufferLocation = vertexBuffer->GetGPUVirtualAddress();
-		vertexBufferView.StrideInBytes = sizeof(Vertex);
-		vertexBufferView.SizeInBytes = vertexBufferSize;
-
 		const glm::vec4 clearColor = { 0.4f, 0.6f, 0.9f, 1.0f };
 
 		auto commandList = gRHI.GetCommandList();
@@ -132,7 +120,7 @@ void ExampleRender001()
 					commandList->SetGraphicsRootSignature(rootSignature.Get());
 					commandList->SetPipelineState(pipelineState.Get());
 					commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-					commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
+					commandList->IASetVertexBuffers(0, 1, &vertexBuffer.View());
 					commandList->DrawInstanced(3, 1, 0, 0);
 				}
 				PIXEndEvent(commandList);
@@ -143,9 +131,9 @@ void ExampleRender001()
 			engine.EndFrame();
 		}
 
+		vertexBuffer.Destroy();
 		rootSignature.Reset();
 		pipelineState.Reset();
-		vertexBuffer.Reset();
 	}
 	engine.Destroy();
 }
