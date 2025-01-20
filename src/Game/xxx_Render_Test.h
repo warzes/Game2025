@@ -1,5 +1,7 @@
 ﻿#include "stdafx.h"
 
+упростить по https ://github.com/sawickiap/RegEngine
+
 namespace testXXX
 {
 
