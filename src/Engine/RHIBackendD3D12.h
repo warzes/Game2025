@@ -31,8 +31,8 @@ public:
 
 	void ClearFrameBuffer(const glm::vec4& color);
 
-	auto GetD3DDevice() const noexcept { return context.GetD3DDevice(); }
-	auto GetD3DAllocator() const noexcept { return context.GetD3DAllocator(); }
+	auto GetD3DDevice() const noexcept { return context.GetDevice(); }
+	auto GetD3DAllocator() const noexcept { return context.GetAllocator(); }
 	
 	auto GetCommandList() const noexcept { return commandList.Get(); }
 	auto GetCurrentCommandAllocator() const noexcept { return commandAllocators[swapChain.GetCurrentBackBufferIndex()].Get(); }
@@ -64,13 +64,18 @@ public:
 	CommandQueueD3D12                   computeQueue;
 	CommandQueueD3D12                   copyQueue;
 
-	ComPtr<ID3D12GraphicsCommandList10> commandList;
 	ComPtr<ID3D12CommandAllocator>      commandAllocators[MAX_BACK_BUFFER_COUNT];
+	ComPtr<ID3D12GraphicsCommandList10> commandList;
+
 
 	DescriptorHeapManagerD3D12          descriptorHeapManager;
 
+	// === new test??? ===>
+	void BeginDraw();
+	void EndDraw();
+
 private:
-	bool createCommandQueue();
+	bool createCommandSystem();
 };
 
 extern RHIBackend gRHI;

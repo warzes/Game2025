@@ -158,11 +158,9 @@ void ExampleRender005()
 			D3DCreateBlob(ibByteSize, &boxGeo.IndexBufferCPU);
 			CopyMemory(boxGeo.IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
-			boxGeo.VertexBufferGPU = CreateDefaultBuffer(gRHI.GetD3DDevice(),
-				commandList, vertices.data(), vbByteSize, boxGeo.VertexBufferUploader);
+			boxGeo.VertexBufferGPU = CreateDefaultBuffer(gRHI.GetD3DDevice(), commandList, vertices.data(), vbByteSize, boxGeo.VertexBufferUploader);
 
-			boxGeo.IndexBufferGPU = CreateDefaultBuffer(gRHI.GetD3DDevice(),
-				commandList, indices.data(), ibByteSize, boxGeo.IndexBufferUploader);
+			boxGeo.IndexBufferGPU = CreateDefaultBuffer(gRHI.GetD3DDevice(), commandList, indices.data(), ibByteSize, boxGeo.IndexBufferUploader);
 
 			boxGeo.VertexByteStride = sizeof(Vertex);
 			boxGeo.VertexBufferByteSize = vbByteSize;

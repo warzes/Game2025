@@ -24,22 +24,31 @@ bool SwapChainD3D12::Create(const SwapChainD3D12CreateInfo& createInfo)
 	m_frameBufferWidth = 0;
 	m_frameBufferHeight = 0;
 
-	assert(createInfo.context.GetD3DFactory());
-	assert(createInfo.context.GetD3DDevice());
-	assert(createInfo.context.GetD3DAllocator());
+	assert(createInfo.context.GetFactory());
+	assert(createInfo.context.GetDevice());
+	assert(createInfo.context.GetAllocator());
 	assert(createInfo.presentQueue);
 	assert(createInfo.windowData.hwnd);
 	assert(createInfo.numBackBuffers > 0 && createInfo.numBackBuffers <= MAX_BACK_BUFFER_COUNT);
 
 	setSize(createInfo.windowData.width, createInfo.windowData.height);
 
-	m_device                = createInfo.context.GetD3DDevice();
-	m_allocator             = createInfo.context.GetD3DAllocator();
+	{
+		// при отключении vsync на экране могут быть разрывы
+		BOOL allowTearing = FALSE;
+		if (FAILED(createInfo.context.GetFactory()->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
+			m_supportAllowTearing = false;
+		else
+			m_supportAllowTearing = (allowTearing == TRUE);
+	}
+
+	m_device                = createInfo.context.GetDevice();
+	m_allocator             = createInfo.context.GetAllocator();
 	m_presentQueue          = createInfo.presentQueue;
 	m_descriptorHeapManager = &createInfo.descriptorHeapManager;
 	m_numBackBuffers        = createInfo.numBackBuffers;
 	m_vSync                 = createInfo.vSync;
-	m_allowTearing          = createInfo.context.IsSupportAllowTearing() && !m_vSync;
+	m_supportAllowTearing   = m_supportAllowTearing && !m_vSync;
 
 	if (!createSwapChain(createInfo)) return false;
 
@@ -122,7 +131,7 @@ bool SwapChainD3D12::Present()
 	// https://docs.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-flip-model#avoiding-detecting-and-recovering-from-glitches
 
 	UINT syncInterval = m_vSync ? 1 : 0;
-	UINT presentFlags = m_allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0;
+	UINT presentFlags = m_supportAllowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0;
 	if (syncInterval == 0) presentFlags |= DXGI_PRESENT_RESTART; // DXGI_PRESENT_RESTART означает, что мы разрешаем получать буферы не по порядку, например 0, 1, 2, 1, 0, 2
 	// TODO: проверить работу флагов Present
 
@@ -290,7 +299,7 @@ bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 	DXGI_FORMAT swapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 	// Check HDR support : https://docs.microsoft.com/en-us/windows/win32/direct3darticles/high-dynamic-range
-	const bool isHDRCapableDisplayAvailable = checkHDRSupport(createInfo.windowData.hwnd, createInfo.context.GetD3DFactory());
+	const bool isHDRCapableDisplayAvailable = checkHDRSupport(createInfo.windowData.hwnd, createInfo.context.GetFactory());
 	if (createInfo.HDR)
 	{
 		if (isHDRCapableDisplayAvailable)
@@ -335,13 +344,13 @@ bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 	swapChainDesc.Scaling               = DXGI_SCALING_STRETCH;
 	swapChainDesc.SwapEffect            = swapEffect;
 	swapChainDesc.AlphaMode             = DXGI_ALPHA_MODE_IGNORE;
-	swapChainDesc.Flags = m_allowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+	swapChainDesc.Flags                 = m_supportAllowTearing ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
 	DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsSwapChainDesc = {};
 	fsSwapChainDesc.Windowed = TRUE;
 
 	ComPtr<IDXGISwapChain1> swapChain1;
-	HRESULT result = createInfo.context.GetD3DFactory()->CreateSwapChainForHwnd(*m_presentQueue, createInfo.windowData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
+	HRESULT result = createInfo.context.GetFactory()->CreateSwapChainForHwnd(*m_presentQueue, createInfo.windowData.hwnd, &swapChainDesc, &fsSwapChainDesc, nullptr, &swapChain1);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::CreateSwapChainForHwnd() failed: " + DXErrorToStr(result));
@@ -349,7 +358,7 @@ bool SwapChainD3D12::createSwapChain(const SwapChainD3D12CreateInfo& createInfo)
 	}
 	m_backBufferFormat = swapChainFormat;
 
-	result = createInfo.context.GetD3DFactory()->MakeWindowAssociation(createInfo.windowData.hwnd, DXGI_MWA_NO_ALT_ENTER);
+	result = createInfo.context.GetFactory()->MakeWindowAssociation(createInfo.windowData.hwnd, DXGI_MWA_NO_ALT_ENTER);
 	if (FAILED(result))
 	{
 		Fatal("IDXGIFactory2::MakeWindowAssociation() failed: " + DXErrorToStr(result));
@@ -391,7 +400,7 @@ bool SwapChainD3D12::createRenderTargetViews()
 		}
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-		rtvDesc.Format = m_backBufferFormat;
+		rtvDesc.Format = m_backBufferFormat; // TODO: DXGI_FORMAT_R8G8B8A8_UNORM_SRGB ???
 		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
 		m_device->CreateRenderTargetView(m_backBuffers[bufferIndex].Get(), &rtvDesc, m_backBuffersDescriptor[bufferIndex].CPUHandle);

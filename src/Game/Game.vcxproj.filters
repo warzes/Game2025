@@ -37,6 +37,9 @@
     <ClInclude Include="005_Render_Cube.h">
       <Filter>Examples\Render</Filter>
     </ClInclude>
+    <ClInclude Include="xxx_Render_Test.h">
+      <Filter>Examples\Render</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Game">

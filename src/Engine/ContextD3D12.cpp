@@ -148,15 +148,6 @@ bool ContextD3D12::createFactory()
 		return false;
 	}
 
-	{
-		// при отключении vsync на экране могут быть разрывы
-		BOOL allowTearing = FALSE;
-		if (FAILED(m_factory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &allowTearing, sizeof(allowTearing))))
-			m_supportAllowTearing = false;
-		else
-			m_supportAllowTearing = (allowTearing == TRUE);
-	}
-
 	return true;
 }
 //=============================================================================

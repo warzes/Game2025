@@ -4,6 +4,7 @@
 #include "WindowData.h"
 #include "Log.h"
 #include "RenderCore.h"
+#include "HelperD3D12.h"
 //=============================================================================
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -18,8 +19,8 @@ RHIBackend gRHI{};
 bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateInfo& createInfo)
 {
 	if (!context.Create(createInfo.context)) return false;
-	if (!createCommandQueue()) return false;
-	if (!descriptorHeapManager.Create(context.GetD3DDevice())) return false;
+	if (!createCommandSystem()) return false;
+	if (!descriptorHeapManager.Create(context.GetDevice())) return false;
 
 	SwapChainD3D12CreateInfo swapChainCreateInfo = { 
 		.windowData = wndData, 
@@ -27,29 +28,7 @@ bool RHIBackend::CreateAPI(const WindowData& wndData, const RenderSystemCreateIn
 		.descriptorHeapManager = descriptorHeapManager };
 	swapChainCreateInfo.presentQueue = &graphicsQueue;
 	swapChainCreateInfo.vSync        = createInfo.vsync;
-	if (!swapChain.Create(swapChainCreateInfo)) return false;
-
-	// Create a command allocator for each back buffer that will be rendered to.
-	for (int i = 0; i < MAX_BACK_BUFFER_COUNT; ++i)
-	{
-		HRESULT result = GetD3DDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocators[i]));
-		if (FAILED(result))
-		{
-			Fatal("ID3D12Device14::CreateCommandAllocator() failed: " + DXErrorToStr(result));
-			return false;
-		}
-		wchar_t name[25] = {};
-		swprintf_s(name, L"Render target %u", i);
-		commandAllocators[i]->SetName(name);
-	}
-
-	// Create a command list for recording graphics commands.
-	HRESULT result = GetD3DDevice()->CreateCommandList1(0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&commandList));
-	if (FAILED(result))
-	{
-		Fatal("ID3D12Device14::CreateCommandList1() failed: " + DXErrorToStr(result));
-		return false;
-	}
+	if (!swapChain.Create(swapChainCreateInfo)) return false;	
 
 	return true;
 }
@@ -170,13 +149,75 @@ void RHIBackend::ClearFrameBuffer(const glm::vec4& color)
 	PIXEndEvent(commandList.Get());
 }
 //=============================================================================
-bool RHIBackend::createCommandQueue()
+void RHIBackend::BeginDraw()
+{
+	PIXBeginEvent(PIX_COLOR_DEFAULT, L"BeginDraw");
+	{
+		// Reset command list and allocator.
+		HRESULT result = commandAllocators[swapChain.GetCurrentBackBufferIndex()]->Reset();
+		if (FAILED(result))
+		{
+			Fatal("ID3D12CommandAllocator::Reset() failed: " + DXErrorToStr(result));
+			return;
+		}
+
+		result = commandList->Reset(commandAllocators[swapChain.GetCurrentBackBufferIndex()].Get(), nullptr);
+		if (FAILED(result))
+		{
+			Fatal("ID3D12GraphicsCommandList10::Reset() failed: " + DXErrorToStr(result));
+			return;
+		}
+	}
+	PIXEndEvent();
+}
+//=============================================================================
+void RHIBackend::EndDraw()
+{
+	PIXBeginEvent(PIX_COLOR_DEFAULT, L"EndDraw");
+	{
+		// Send the command list off to the GPU for processing.
+		HRESULT result = commandList->Close();
+		if (FAILED(result))
+		{
+			Fatal("ID3D12GraphicsCommandList10::Close() failed: " + DXErrorToStr(result));
+			return;
+		}
+		graphicsQueue.ExecuteCommandList(commandList);
+
+		swapChain.Present();
+		swapChain.MoveToNextFrame();
+	}
+	PIXEndEvent();
+
+}
+//=============================================================================
+bool RHIBackend::createCommandSystem()
 {
 	if (!graphicsQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_DIRECT, "Main Graphics Command Queue")) return false;
 
 	if (!computeQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_COMPUTE, "Main Compute Command Queue")) return false;
 
 	if (!copyQueue.Create(context.GetD3DDeviceRef(), D3D12_COMMAND_LIST_TYPE_COPY, "Main Copy Command Queue")) return false;
+
+	// Create a command allocator for each back buffer that will be rendered to.
+	for (int i = 0; i < MAX_BACK_BUFFER_COUNT; ++i)
+	{
+		HRESULT result = GetD3DDevice()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocators[i]));
+		if (FAILED(result))
+		{
+			Fatal("ID3D12Device14::CreateCommandAllocator() failed: " + DXErrorToStr(result));
+			return false;
+		}
+
+		SetDebugObjectName(commandAllocators[i].Get(), "Command Allocator %u", i);
+	}
+	// Create a command list for recording graphics commands.
+	HRESULT result = GetD3DDevice()->CreateCommandList1(0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_LIST_FLAG_NONE, IID_PPV_ARGS(&commandList));
+	if (FAILED(result))
+	{
+		Fatal("ID3D12Device14::CreateCommandList1() failed: " + DXErrorToStr(result));
+		return false;
+	}
 
 	return true;
 }

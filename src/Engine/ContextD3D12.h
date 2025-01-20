@@ -26,13 +26,11 @@ public:
 	bool Create(const ContextCreateInfo& createInfo);
 	void Destroy();
 
-	auto GetD3DFactory() { return m_factory; }
-	auto GetD3DAdapter() { return m_adapter; }
-	auto GetD3DDevice() const noexcept { return m_device; }
+	auto GetFactory() { return m_factory; }
+	auto GetAdapter() { return m_adapter; }
+	auto GetDevice() const noexcept { return m_device; }
 	auto GetD3DDeviceRef() const noexcept { return m_device.Get(); }
-	auto GetD3DAllocator() const noexcept { return m_allocator; }
-
-	bool IsSupportAllowTearing() const { return m_supportAllowTearing; }
+	auto GetAllocator() const noexcept { return m_allocator; }
 
 	const DeviceCapabilities& GetDeviceCapabilities() const { return m_deviceCapabilities; }
 
@@ -46,7 +44,6 @@ private:
 
 	ComPtr<IDXGIFactory7>         m_factory;
 	ComPtr<IDXGIAdapter4>         m_adapter;
-	bool                          m_supportAllowTearing{ false };
 	ComPtr<ID3D12Device14>        m_device;
 	ComPtr<D3D12MA::Allocator>    m_allocator;
 	D3D12MA::ALLOCATION_CALLBACKS m_allocationCallbacks = {};

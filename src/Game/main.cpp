@@ -6,6 +6,8 @@
 #	include "003_Render_TriangleBundles.h"
 #	include "004_Render_TriangleCB.h"
 #	include "005_Render_Cube.h"
+
+#	include "xxx_Render_Test.h"
 #endif
 //=============================================================================
 #if defined(_MSC_VER)
@@ -23,7 +25,9 @@ int main(
 	//ExampleRender002();
 	//ExampleRender003();
 	//ExampleRender004();
-	ExampleRender005();
+	//ExampleRender005();
+
+	ExampleRenderXXX();
 #else
 	extern void GameApp();
 	GameApp();

@@ -123,7 +123,7 @@ private:
 	unsigned short              m_currentBackBufferIndex{ 0 };
 	unsigned long long          m_numTotalFrames{ 0 };
 	bool                        m_vSync{ false };
-	bool                        m_allowTearing{ false };
+	bool                        m_supportAllowTearing{ false };
 };
 
 #endif // RENDER_D3D12
